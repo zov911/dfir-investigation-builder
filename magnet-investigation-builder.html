@@ -1,0 +1,1461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Investigation Scenario Builder — Magnet Forensics</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════
+   TOKENS
+═══════════════════════════════════════ */
+:root {
+  --bg:        #080c10;
+  --bg2:       #0d1117;
+  --bg3:       #111820;
+  --bg4:       #161e28;
+  --border:    #1e2d3d;
+  --border2:   #253545;
+  --cyan:      #00d4ff;
+  --cyan-dim:  rgba(0,212,255,0.08);
+  --cyan-glow: rgba(0,212,255,0.25);
+  --green:     #00ff88;
+  --green-dim: rgba(0,255,136,0.08);
+  --red:       #ff4444;
+  --red-dim:   rgba(255,68,68,0.08);
+  --amber:     #ffaa00;
+  --amber-dim: rgba(255,170,0,0.08);
+  --text:      #cdd9e5;
+  --muted:     #5c7a96;
+  --dim:       #334455;
+  --r:         6px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:'JetBrains Mono',monospace;
+  font-size:13px;
+  min-height:100vh;
+  overflow-x:hidden;
+  cursor:default;
+}
+
+/* ── Scan-line overlay ── */
+body::after{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:999;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.03) 2px,rgba(0,0,0,0.03) 4px);
+}
+
+/* ── Grid bg ── */
+body::before{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:
+    linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+  background-size:40px 40px;
+}
+
+/* ═══════════════════════════════════════
+   LAYOUT
+═══════════════════════════════════════ */
+.shell{
+  position:relative;z-index:1;
+  max-width:1160px;margin:0 auto;
+  padding:0 16px 80px;
+}
+
+/* ═══════════════════════════════════════
+   HEADER
+═══════════════════════════════════════ */
+.top-bar{
+  display:flex;align-items:center;
+  padding:16px 0;
+  border-bottom:1px solid var(--border);
+  margin-bottom:0;
+  gap:12px;
+}
+.tb-dot{width:8px;height:8px;border-radius:50%;background:var(--cyan);box-shadow:0 0 8px var(--cyan);}
+.tb-dot.g{background:var(--green);box-shadow:0 0 8px var(--green);}
+.tb-dot.r{background:var(--red);box-shadow:0 0 8px var(--red);}
+.tb-path{
+  font-size:11px;color:var(--muted);letter-spacing:0.5px;
+  flex:1;
+}
+.tb-path span{color:var(--cyan);}
+.tb-badge{
+  font-size:10px;font-weight:700;letter-spacing:1px;
+  color:var(--cyan);border:1px solid var(--cyan);
+  padding:3px 10px;border-radius:2px;
+  text-transform:uppercase;
+  box-shadow:0 0 8px var(--cyan-glow);
+}
+
+/* ── Hero ── */
+.hero{
+  padding:56px 0 48px;
+  border-bottom:1px solid var(--border);
+}
+.hero-tag{
+  font-size:11px;font-weight:700;letter-spacing:2px;
+  color:var(--cyan);text-transform:uppercase;
+  margin-bottom:14px;
+  display:flex;align-items:center;gap:8px;
+}
+.hero-tag::before{content:'▶';font-size:8px;}
+.hero h1{
+  font-family:'Syne',sans-serif;
+  font-size:clamp(28px,5vw,52px);
+  font-weight:800;line-height:1.05;
+  color:#fff;letter-spacing:-0.5px;
+  margin-bottom:16px;
+}
+.hero h1 em{
+  font-style:normal;
+  color:var(--cyan);
+  text-shadow:0 0 30px var(--cyan-glow);
+}
+.hero-sub{
+  font-size:13px;color:var(--muted);
+  line-height:1.8;max-width:600px;
+}
+
+/* ═══════════════════════════════════════
+   STEP 1 — SCENARIO PICKER
+═══════════════════════════════════════ */
+.section{padding:40px 0;}
+.sec-label{
+  font-size:10px;font-weight:700;letter-spacing:2px;
+  color:var(--muted);text-transform:uppercase;
+  margin-bottom:20px;
+  display:flex;align-items:center;gap:8px;
+}
+.sec-label::before{
+  content:'';width:24px;height:1px;background:var(--border2);
+}
+.sec-label span{color:var(--cyan);}
+
+.scenario-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(200px,1fr));
+  gap:10px;
+}
+.sc-btn{
+  background:var(--bg2);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  padding:20px 16px 18px;
+  cursor:pointer;
+  text-align:left;
+  transition:all 0.2s ease;
+  position:relative;
+  overflow:hidden;
+}
+.sc-btn::before{
+  content:'';
+  position:absolute;top:0;left:0;right:0;height:2px;
+  background:transparent;
+  transition:background 0.2s;
+}
+.sc-btn:hover{
+  border-color:var(--border2);
+  background:var(--bg3);
+  transform:translateY(-2px);
+}
+.sc-btn.active{
+  border-color:var(--cyan);
+  background:var(--cyan-dim);
+  box-shadow:0 0 20px rgba(0,212,255,0.1), inset 0 0 20px rgba(0,212,255,0.03);
+}
+.sc-btn.active::before{background:var(--cyan);}
+.sc-emoji{font-size:24px;margin-bottom:10px;line-height:1;display:block;}
+.sc-name{
+  font-family:'Syne',sans-serif;
+  font-size:14px;font-weight:700;
+  color:var(--text);margin-bottom:4px;
+  line-height:1.2;
+}
+.sc-btn.active .sc-name{color:var(--cyan);}
+.sc-desc{font-size:11px;color:var(--muted);line-height:1.5;}
+
+/* ═══════════════════════════════════════
+   STEP 2 — OS FILTER
+═══════════════════════════════════════ */
+.os-row{display:flex;gap:8px;flex-wrap:wrap;}
+.os-btn{
+  background:var(--bg2);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  padding:7px 16px;
+  font-family:'JetBrains Mono',monospace;
+  font-size:12px;font-weight:500;
+  color:var(--muted);cursor:pointer;
+  transition:all 0.15s;
+  display:flex;align-items:center;gap:6px;
+}
+.os-btn:hover{border-color:var(--border2);color:var(--text);}
+.os-btn.active{
+  border-color:var(--green);
+  color:var(--green);background:var(--green-dim);
+}
+.os-dot{width:6px;height:6px;border-radius:50%;background:currentColor;}
+
+/* ═══════════════════════════════════════
+   RESULTS PANEL
+═══════════════════════════════════════ */
+#resultsPanel{display:none;}
+
+/* Stats bar */
+.stats-bar{
+  display:flex;gap:0;
+  background:var(--bg2);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  overflow:hidden;
+  margin-bottom:24px;
+}
+.stat-cell{
+  flex:1;padding:14px 18px;
+  border-right:1px solid var(--border);
+  position:relative;
+}
+.stat-cell:last-child{border-right:none;}
+.stat-num{
+  font-family:'Syne',sans-serif;
+  font-size:26px;font-weight:800;
+  line-height:1;color:var(--text);
+}
+.stat-num.c{color:var(--red);}
+.stat-num.h{color:var(--amber);}
+.stat-num.m{color:var(--cyan);}
+.stat-lbl{font-size:10px;color:var(--muted);margin-top:3px;letter-spacing:0.5px;text-transform:uppercase;}
+
+/* Scene context */
+.scene-box{
+  background:var(--bg2);
+  border:1px solid var(--border);
+  border-left:3px solid var(--cyan);
+  border-radius:var(--r);
+  padding:16px 20px;
+  margin-bottom:28px;
+  display:flex;gap:14px;align-items:flex-start;
+}
+.scene-icon{font-size:22px;flex-shrink:0;line-height:1;margin-top:2px;}
+.scene-text .scene-title{
+  font-family:'Syne',sans-serif;
+  font-size:14px;font-weight:700;
+  color:var(--cyan);margin-bottom:5px;
+}
+.scene-text p{font-size:12px;color:var(--muted);line-height:1.7;}
+
+/* Artifact list */
+.artifact-section{margin-bottom:8px;}
+.priority-header{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 0 8px;
+  margin-bottom:8px;
+  border-bottom:1px solid var(--border);
+}
+.priority-pip{
+  width:8px;height:8px;border-radius:50%;flex-shrink:0;
+}
+.priority-label{
+  font-size:10px;font-weight:700;letter-spacing:1.5px;
+  text-transform:uppercase;
+}
+.priority-count{
+  font-size:10px;color:var(--muted);
+  background:var(--bg3);
+  border:1px solid var(--border);
+  padding:1px 7px;border-radius:10px;
+}
+
+/* Artifact card */
+.artifact-card{
+  background:var(--bg2);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  margin-bottom:8px;
+  overflow:hidden;
+  transition:border-color 0.2s;
+  cursor:pointer;
+}
+.artifact-card:hover{border-color:var(--border2);}
+.artifact-card.expanded{border-color:var(--border2);}
+
+.ac-head{
+  display:flex;align-items:center;
+  gap:12px;padding:14px 16px;
+}
+.ac-check{
+  width:18px;height:18px;
+  border:1.5px solid var(--border2);
+  border-radius:3px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  transition:all 0.15s;cursor:pointer;
+  position:relative;z-index:2;
+}
+.ac-check.checked{
+  background:var(--green);border-color:var(--green);
+}
+.ac-check.checked::after{
+  content:'✓';font-size:11px;font-weight:700;color:#000;
+}
+.ac-icon{font-size:18px;flex-shrink:0;}
+.ac-name{
+  font-family:'Syne',sans-serif;
+  font-size:13px;font-weight:700;
+  color:var(--text);flex:1;
+}
+.artifact-card.p-critical .ac-name{color:#ff9090;}
+.artifact-card.p-high .ac-name{color:#ffd090;}
+.artifact-card.p-medium .ac-name{color:#90d0ff;}
+
+.ac-priority{
+  font-size:9px;font-weight:700;letter-spacing:1px;
+  text-transform:uppercase;padding:2px 8px;
+  border-radius:2px;white-space:nowrap;flex-shrink:0;
+}
+.p-critical .ac-priority{background:var(--red-dim);color:var(--red);border:1px solid var(--red);}
+.p-high .ac-priority{background:var(--amber-dim);color:var(--amber);border:1px solid var(--amber);}
+.p-medium .ac-priority{background:var(--cyan-dim);color:var(--cyan);border:1px solid var(--cyan);}
+
+.ac-chevron{
+  font-size:10px;color:var(--muted);
+  transition:transform 0.2s;flex-shrink:0;
+}
+.artifact-card.expanded .ac-chevron{transform:rotate(90deg);}
+
+/* Expanded body */
+.ac-body{
+  display:none;
+  padding:0 16px 16px 48px;
+  border-top:1px solid var(--border);
+}
+.artifact-card.expanded .ac-body{display:block;}
+
+.ac-why{
+  font-size:12px;color:var(--text);
+  line-height:1.7;margin:14px 0 12px;
+  padding-left:12px;
+  border-left:2px solid var(--cyan);
+}
+
+.ac-meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;}
+@media(max-width:560px){.ac-meta{grid-template-columns:1fr;}}
+
+.meta-block{
+  background:var(--bg3);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  padding:10px 12px;
+}
+.meta-label{
+  font-size:9px;font-weight:700;letter-spacing:1px;
+  text-transform:uppercase;color:var(--muted);
+  margin-bottom:5px;
+}
+.meta-val{
+  font-size:11px;color:var(--text);
+  line-height:1.6;word-break:break-all;
+}
+.meta-val code{
+  color:var(--green);font-size:11px;
+  display:block;margin-top:2px;
+}
+
+.ac-axiom{
+  display:flex;align-items:center;gap:8px;
+  margin-top:12px;
+  background:rgba(0,212,255,0.05);
+  border:1px solid rgba(0,212,255,0.15);
+  border-radius:var(--r);
+  padding:8px 12px;
+  font-size:11px;color:var(--muted);
+}
+.ac-axiom strong{color:var(--cyan);}
+.axiom-dot{width:6px;height:6px;border-radius:50%;background:var(--cyan);box-shadow:0 0 6px var(--cyan);flex-shrink:0;}
+
+/* ═══════════════════════════════════════
+   PROGRESS / CHECKLIST FOOTER
+═══════════════════════════════════════ */
+.checklist-footer{
+  position:sticky;bottom:0;z-index:10;
+  background:rgba(8,12,16,0.92);
+  backdrop-filter:blur(12px);
+  border-top:1px solid var(--border);
+  padding:12px 0;
+  margin:0 -16px;
+  padding:12px 16px;
+}
+.cf-inner{
+  max-width:1160px;margin:0 auto;
+  display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+}
+.cf-progress{flex:1;min-width:200px;}
+.cf-label{
+  display:flex;justify-content:space-between;
+  font-size:11px;color:var(--muted);margin-bottom:5px;
+}
+.cf-label span{color:var(--green);}
+.cf-track{
+  height:3px;background:var(--border);
+  border-radius:2px;overflow:hidden;
+}
+.cf-fill{
+  height:100%;background:linear-gradient(90deg,var(--cyan),var(--green));
+  border-radius:2px;transition:width 0.4s ease;
+}
+.cf-reset{
+  background:transparent;
+  border:1px solid var(--border2);
+  border-radius:var(--r);
+  padding:7px 16px;
+  color:var(--muted);font-family:'JetBrains Mono',monospace;
+  font-size:11px;cursor:pointer;transition:all 0.15s;
+  white-space:nowrap;
+}
+.cf-reset:hover{border-color:var(--muted);color:var(--text);}
+.cf-export{
+  background:var(--cyan);
+  border:none;border-radius:var(--r);
+  padding:7px 16px;
+  color:#000;font-family:'JetBrains Mono',monospace;
+  font-size:11px;font-weight:700;cursor:pointer;
+  transition:all 0.15s;white-space:nowrap;
+}
+.cf-export:hover{background:#33ddff;transform:translateY(-1px);}
+
+/* ═══════════════════════════════════════
+   EMPTY STATE
+═══════════════════════════════════════ */
+.empty-state{
+  display:flex;flex-direction:column;align-items:center;
+  justify-content:center;
+  padding:60px 20px;
+  text-align:center;
+  border:1px dashed var(--border);
+  border-radius:var(--r);
+}
+.empty-state .es-icon{font-size:40px;margin-bottom:16px;opacity:0.4;}
+.empty-state p{font-size:12px;color:var(--muted);line-height:1.7;}
+
+/* ═══════════════════════════════════════
+   ANIMATIONS
+═══════════════════════════════════════ */
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:translateY(0);}}
+@keyframes scanIn{from{opacity:0;transform:translateX(-6px);}to{opacity:1;transform:translateX(0);}}
+.fade-up{animation:fadeUp 0.35s ease both;}
+.fade-up-d1{animation-delay:0.05s;}
+.fade-up-d2{animation-delay:0.10s;}
+.fade-up-d3{animation-delay:0.15s;}
+.fade-up-d4{animation-delay:0.20s;}
+.fade-up-d5{animation-delay:0.25s;}
+
+/* ── Blinking cursor ── */
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:0;}}
+.cursor{display:inline-block;width:8px;height:14px;background:var(--cyan);vertical-align:middle;animation:blink 1s step-end infinite;margin-left:3px;}
+
+/* Mobile */
+@media(max-width:640px){
+  .stats-bar{flex-wrap:wrap;}
+  .stat-cell{flex:1 1 calc(50% - 1px);}
+  .scenario-grid{grid-template-columns:1fr 1fr;}
+  .hero h1{font-size:26px;}
+}
+@media(max-width:380px){
+  .scenario-grid{grid-template-columns:1fr;}
+}
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <!-- TOP BAR -->
+  <div class="top-bar">
+    <div class="tb-dot r"></div>
+    <div class="tb-dot" style="background:#ffaa00;box-shadow:0 0 8px #ffaa00;"></div>
+    <div class="tb-dot g"></div>
+    <div class="tb-path">magnet-forensics / <span>investigation-builder</span> / scenario.js</div>
+    <div class="tb-badge">AXIOM Ready</div>
+  </div>
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="hero-tag">Magnet Forensics · Triage Tool</div>
+    <h1>Investigation<br><em>Scenario Builder</em><span class="cursor"></span></h1>
+    <p class="hero-sub">Select a case type to generate a prioritized artifact collection checklist. Each artifact includes forensic significance, registry paths, and AXIOM coverage notes.</p>
+  </div>
+
+  <!-- STEP 1: SCENARIO -->
+  <div class="section" id="step1">
+    <div class="sec-label"><span>01</span> · SELECT CASE TYPE</div>
+    <div class="scenario-grid" id="scenarioGrid"></div>
+  </div>
+
+  <!-- STEP 2: OS -->
+  <div class="section" id="step2" style="padding-top:0;">
+    <div class="sec-label"><span>02</span> · TARGET OS / PLATFORM</div>
+    <div class="os-row" id="osRow"></div>
+  </div>
+
+  <!-- RESULTS -->
+  <div id="resultsPanel">
+    <div class="sec-label" style="padding-top:8px;"><span>03</span> · ARTIFACT CHECKLIST <span id="caseLabel" style="color:var(--text);margin-left:6px;"></span></div>
+
+    <!-- Stats -->
+    <div class="stats-bar" id="statsBar"></div>
+
+    <!-- Scene -->
+    <div class="scene-box" id="sceneBox"></div>
+
+    <!-- Artifact List -->
+    <div id="artifactList"></div>
+
+    <div style="height:60px;"></div>
+  </div>
+
+  <!-- Empty state -->
+  <div class="empty-state" id="emptyState">
+    <div class="es-icon">🔍</div>
+    <p>Select a case type above to generate<br>your investigation artifact checklist.</p>
+  </div>
+
+</div><!-- /shell -->
+
+<!-- STICKY FOOTER -->
+<div class="checklist-footer" id="checklistFooter" style="display:none;">
+  <div class="cf-inner">
+    <div class="cf-progress">
+      <div class="cf-label">
+        Evidence Collection Progress
+        <span id="progressLabel">0 / 0 collected</span>
+      </div>
+      <div class="cf-track">
+        <div class="cf-fill" id="progressFill" style="width:0%"></div>
+      </div>
+    </div>
+    <button class="cf-reset" onclick="resetChecks()">↺ Reset</button>
+    <button class="cf-export" onclick="exportChecklist()">↓ Export Checklist</button>
+  </div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════
+   DATA
+═══════════════════════════════════════════════════ */
+
+const OS_OPTIONS = [
+  {id:'all',   label:'All Platforms', icon:'🌐'},
+  {id:'win10', label:'Windows 10/11',  icon:'🪟'},
+  {id:'win7',  label:'Windows 7/8',    icon:'🪟'},
+  {id:'winxp', label:'Windows XP',     icon:'🪟'},
+  {id:'mac',   label:'macOS',          icon:'🍎'},
+];
+
+const SCENARIOS = [
+  {
+    id:'ip_theft',
+    emoji:'💼',
+    name:'IP Theft',
+    desc:'Intellectual property stolen or exfiltrated by employee or contractor',
+    scene:{
+      icon:'🕵️',
+      title:'Scenario Context',
+      text:'An employee is suspected of stealing trade secrets, source code, or confidential documents before resignation or termination. Investigation must establish what was accessed, copied, and where it went.',
+    },
+    artifacts:[
+      {
+        id:'usb_hist',
+        priority:'critical',
+        icon:'🔌',
+        name:'USB Device History',
+        why:'The most direct evidence of data exfiltration. USB device history reveals every external drive connected — with timestamps. In IP theft cases, a USB plugged in during after-hours access is often the smoking gun.',
+        location:'SYSTEM\\CurrentControlSet\\Enum\\USBSTOR',
+        what:'Vendor/brand, device serial number, first and last connection timestamps, mapped drive letter',
+        os:['win10','win7','winxp'],
+        axiom:'AXIOM automatically parses USBSTOR, MountedDevices, and MountPoints2 into a unified USB timeline with user attribution.',
+      },
+      {
+        id:'lnk_files',
+        priority:'critical',
+        icon:'🔗',
+        name:'LNK Files',
+        why:'LNK shortcut files persist even after the original document is deleted or moved to USB. They reveal exactly which files were opened, when, and from which path — including paths pointing to removable drives (e.g., E:\\Documents\\).',
+        location:'%APPDATA%\\Microsoft\\Windows\\Recent\\',
+        what:'Original file path, MAC times of linked file, volume serial number, NetBIOS name, file size',
+        os:['win10','win7','winxp'],
+        axiom:'AXIOM recovers LNK files from allocated and unallocated space, surfacing files that were on USB drives even after the drive is removed.',
+      },
+      {
+        id:'shellbags',
+        priority:'critical',
+        icon:'📁',
+        name:'Shellbags',
+        why:'Shellbags record every folder a user browsed in Windows Explorer — including folders on USB drives and network shares that no longer exist. Critical for proving a suspect accessed a specific project folder.',
+        location:'NTUSER.dat\\Software\\Microsoft\\Windows\\Shell\\BagMRU (XP) / UsrClass.dat (Win7+)',
+        what:'Full folder hierarchy browsed, timestamps, network/USB share access, folder existence even after deletion',
+        os:['win10','win7','winxp'],
+        axiom:'AXIOM decodes BagMRU/Bags registry structures and presents folder history in a readable tree with timestamps.',
+      },
+      {
+        id:'jump_lists',
+        priority:'high',
+        icon:'📋',
+        name:'Jump Lists',
+        why:'Jump lists record recently accessed files per application — Word, Excel, Acrobat. In IP theft cases, they corroborate which specific documents were opened and provide timestamps independent of file system MAC times.',
+        location:'%APPDATA%\\Microsoft\\Windows\\Recent\\AutomaticDestinations\\',
+        what:'Application ID, recent file paths, timestamps, file access order',
+        os:['win10','win7'],
+        axiom:'AXIOM parses AutomaticDestinations and CustomDestinations files, linking AppIDs to application names automatically.',
+      },
+      {
+        id:'prefetch',
+        priority:'high',
+        icon:'⚡',
+        name:'Prefetch Files',
+        why:'Prefetch files prove program execution even if the executable was deleted. If a suspect ran a file-copying tool (e.g., robocopy.exe, teracopy.exe) or archiving tool (7zip, winrar), prefetch is the evidence.',
+        location:'ROOT\\Windows\\Prefetch\\[APPNAME]-[HASH].pf',
+        what:'Application name, execution count, first/last run timestamps, up to 8 timestamps (Win8+)',
+        os:['win10','win7','winxp'],
+        axiom:'AXIOM extracts prefetch files and flags known data exfiltration tools automatically in its artifact viewer.',
+      },
+      {
+        id:'email',
+        priority:'high',
+        icon:'📧',
+        name:'Email (Outlook / Webmail)',
+        why:'Email provides direct evidence of IP being sent externally. Look for attachments sent to personal accounts, competitors, or unknown recipients. Also check for recipients of document shares via cloud links.',
+        location:'PST/OST: %LOCALAPPDATA%\\Microsoft\\Outlook\\',
+        what:'Sent items, attachments, recipients, timestamps, draft emails, deleted items recovery',
+        os:['all'],
+        axiom:'AXIOM parses PST/OST archives and recovers deleted emails. Webmail artifacts (Gmail, Outlook.com) are also recovered from browser artifacts.',
+      },
+      {
+        id:'documents',
+        priority:'high',
+        icon:'📄',
+        name:'Document Metadata',
+        why:'Document metadata reveals original author, last editor, revision history, and creation timestamps — independent of file system timestamps. Critical for proving a document was modified or copied by the suspect.',
+        location:'Embedded in .docx, .xlsx, .pdf file properties',
+        what:'Author, last saved by, revision count, total editing time, created/modified timestamps',
+        os:['all'],
+        axiom:'AXIOM extracts embedded document metadata from Office files and PDFs found across the drive and unallocated space.',
+      },
+      {
+        id:'event_logs',
+        priority:'medium',
+        icon:'📊',
+        name:'Event Logs (Logon/Logoff)',
+        why:'Event logs provide a definitive timeline of when the suspect was logged in. Correlate logon events with USB connections and file access to build a coherent narrative of after-hours activity.',
+        location:'ROOT\\Windows\\System32\\winevt\\Logs\\Security.evtx',
+        what:'Event ID 4624 (logon), 4634 (logoff), 4768 (Kerberos), logon type, source IP',
+        os:['win10','win7'],
+        axiom:'AXIOM parses Windows Event Logs and presents logon/logoff sessions in a timeline view.',
+      },
+    ],
+  },
+
+  {
+    id:'fraud',
+    emoji:'💰',
+    name:'Fraud',
+    desc:'Financial fraud, falsified records, or document manipulation investigation',
+    scene:{
+      icon:'🔎',
+      title:'Scenario Context',
+      text:'A subject is suspected of manipulating financial records, falsifying invoices, creating fraudulent documents, or conducting unauthorized transactions. Investigation focuses on document authenticity and communication chains.',
+    },
+    artifacts:[
+      {
+        id:'documents',
+        priority:'critical',
+        icon:'📄',
+        name:'Document Metadata',
+        why:'In fraud cases, document metadata is often the most powerful evidence. The metadata will reveal if a "historical" document was created recently, edited by the wrong person, or shows impossible revision timelines that contradict the subject\'s claims.',
+        location:'Embedded in .docx, .xlsx, .pdf — accessible via file properties',
+        what:'Author field, last saved by, revision number, total editing time, creation vs. modification timestamps',
+        os:['all'],
+        axiom:'AXIOM extracts metadata from Office documents, PDFs, and image files found in allocated and unallocated space.',
+      },
+      {
+        id:'email',
+        priority:'critical',
+        icon:'📧',
+        name:'Email (Outlook / MBOX / Webmail)',
+        why:'Email is the primary communication record in fraud investigations. Fraudulent instructions, wire transfer approvals, and invoice submissions leave permanent records. Recover deleted threads — they often contain the most damning evidence.',
+        location:'PST: %LOCALAPPDATA%\\Microsoft\\Outlook\\ / Thunderbird MBOX: %APPDATA%\\Thunderbird\\Profiles\\',
+        what:'Full email content, headers (showing true sender), attachments, deleted item recovery, BCC recipients',
+        os:['all'],
+        axiom:'AXIOM recovers Outlook PST/OST data including deleted messages and recovers webmail sessions from browser artifacts.',
+      },
+      {
+        id:'lnk_files',
+        priority:'critical',
+        icon:'🔗',
+        name:'LNK Files',
+        why:'LNK files prove which financial documents were opened and when. Even if a suspect claims they "never opened" a particular spreadsheet, LNK files containing the file path and timestamp provide irrefutable evidence.',
+        location:'%APPDATA%\\Microsoft\\Windows\\Recent\\',
+        what:'File path, access timestamps for linked document, drive volume information',
+        os:['win10','win7','winxp'],
+        axiom:'AXIOM recovers LNK files including those pointing to network shares and removable media where documents were stored.',
+      },
+      {
+        id:'prefetch',
+        priority:'high',
+        icon:'⚡',
+        name:'Prefetch Files',
+        why:'Prefetch proves execution of spreadsheet and document applications. It also reveals execution of any file-manipulation tools, PDF editors, or macro-enabled scripts that may have been used to alter records.',
+        location:'ROOT\\Windows\\Prefetch\\',
+        what:'App execution timestamps, run count, first/last execution, loaded DLLs (revealing features used)',
+        os:['win10','win7','winxp'],
+        axiom:'AXIOM parses prefetch files and cross-references execution times with document access events.',
+      },
+      {
+        id:'jump_lists',
+        priority:'high',
+        icon:'📋',
+        name:'Jump Lists',
+        why:'Jump lists provide a per-application recent file list. In fraud cases, the Excel or Acrobat jump lists may reveal financial spreadsheets or invoices that were accessed but later deleted from the file system.',
+        location:'%APPDATA%\\Microsoft\\Windows\\Recent\\AutomaticDestinations\\',
+        what:'Per-app recent file access history, precise timestamps, file paths',
+        os:['win10','win7'],
+        axiom:'AXIOM correlates jump list data with document metadata to build a complete document access timeline.',
+      },
+      {
+        id:'browser_hist',
+        priority:'high',
+        icon:'🌐',
+        name:'Browser History / Downloads',
+        why:'Subjects in fraud cases often research methods online, access web-based banking, or download forged document templates. Browser history and download records provide the research trail.',
+        location:'Chrome: %LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default\\History / Edge: similar path',
+        what:'URLs visited, search queries, download history, form data, saved passwords',
+        os:['all'],
+        axiom:'AXIOM is purpose-built for browser artifact recovery, parsing Chrome, Firefox, Edge, Safari, and IE including private/incognito sessions.',
+      },
+      {
+        id:'shellbags',
+        priority:'medium',
+        icon:'📁',
+        name:'Shellbags',
+        why:'Shellbags prove a suspect browsed specific folders containing financial records, even after those folders were deleted or located on a network share. Useful for establishing access to sensitive directories.',
+        location:'UsrClass.dat\\Local Settings\\Software\\Microsoft\\Windows\\Shell\\BagMRU',
+        what:'Folder structure browsed including deleted and network folders, with timestamps',
+        os:['win10','win7','winxp'],
+        axiom:'AXIOM decodes shellbag registry data and presents browsed folder hierarchy with last access times.',
+      },
+      {
+        id:'event_logs',
+        priority:'medium',
+        icon:'📊',
+        name:'Event Logs',
+        why:'Security event logs establish when the subject logged in, whether any privilege escalation occurred, and if any auditing policies were modified. Tampering with logs is itself a criminal offense.',
+        location:'ROOT\\Windows\\System32\\winevt\\Logs\\',
+        what:'Logon sessions, privilege use events, audit policy changes, object access (if auditing enabled)',
+        os:['win10','win7'],
+        axiom:'AXIOM parses all Windows event log categories with filtering by event ID and time range.',
+      },
+    ],
+  },
+
+  {
+    id:'malware',
+    emoji:'🦠',
+    name:'Malware Intrusion',
+    desc:'Ransomware, spyware, trojans, or unauthorized system compromise',
+    scene:{
+      icon:'💀',
+      title:'Scenario Context',
+      text:'A system has been compromised by malicious software. Investigation must determine the infection vector, execution timeline, persistence mechanisms, data accessed or exfiltrated, and lateral movement across the network.',
+    },
+    artifacts:[
+      {
+        id:'prefetch',
+        priority:'critical',
+        icon:'⚡',
+        name:'Prefetch Files',
+        why:'Prefetch is the first place to look for malware execution evidence. It proves when malicious executables ran, how many times, and — critically — reveals if they ran from suspicious locations like %TEMP% or user download folders rather than system32.',
+        location:'ROOT\\Windows\\Prefetch\\[MALWARE]-[HASH].pf',
+        what:'Malware execution timestamps, run count, execution path (temp/AppData/Downloads is a red flag), loaded modules',
+        os:['win10','win7','winxp'],
+        axiom:'AXIOM flags executables running from suspicious paths automatically. Cross-reference with known malware hashes via integrated threat intelligence.',
+      },
+      {
+        id:'event_logs',
+        priority:'critical',
+        icon:'📊',
+        name:'Event Logs (Security + System)',
+        why:'Event logs record the entire intrusion timeline — failed logons before successful breach, new service installation (malware persistence), privilege escalation, and lateral movement via remote logon events.',
+        location:'Security.evtx, System.evtx, Application.evtx at ROOT\\Windows\\System32\\winevt\\Logs\\',
+        what:'Event IDs: 4625 (failed logon), 7045 (new service), 4698 (scheduled task), 4624 type 3/10 (network logon)',
+        os:['win10','win7'],
+        axiom:'AXIOM parses Windows event logs with automatic highlighting of critical security event IDs associated with intrusion patterns.',
+      },
+      {
+        id:'registry_run',
+        priority:'critical',
+        icon:'🗝️',
+        name:'Registry Run Keys (Persistence)',
+        why:'Malware establishes persistence via registry Run keys to survive reboots. These keys are always present after infection even if the malware binary is deleted. They reveal the exact command used to launch the malware.',
+        location:'HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run (and RunOnce, RunServices)',
+        what:'Malware persistence command, executable path, any obfuscation/encoded commands',
+        os:['win10','win7','winxp'],
+        axiom:'AXIOM scans all Run/RunOnce/Scheduled Task registry locations and flags non-standard entries against baseline.',
+      },
+      {
+        id:'lnk_files',
+        priority:'high',
+        icon:'🔗',
+        name:'LNK Files',
+        why:'LNK files prove what documents or executables were opened — often revealing the phishing document or malicious attachment that was the infection vector. Look for LNKs pointing to unexpected locations.',
+        location:'%APPDATA%\\Microsoft\\Windows\\Recent\\',
+        what:'Execution path of infection vector, timestamps of initial compromise, linked file metadata',
+        os:['win10','win7','winxp'],
+        axiom:'AXIOM recovers LNK files from unallocated space to find infection vectors even after cleanup attempts.',
+      },
+      {
+        id:'browser_hist',
+        priority:'high',
+        icon:'🌐',
+        name:'Browser History & Downloads',
+        why:'The infection vector for drive-by downloads, phishing, or malicious installers is recorded in browser history and download logs. The exact URL, timestamp, and downloaded filename are preserved.',
+        location:'%LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default\\History & Downloads',
+        what:'Download source URL, timestamp, filename, referrer URL, any malicious redirect chains',
+        os:['all'],
+        axiom:'AXIOM recovers browser download records and cross-references URLs with threat intelligence feeds.',
+      },
+      {
+        id:'email',
+        priority:'high',
+        icon:'📧',
+        name:'Email (Phishing Artifacts)',
+        why:'Phishing emails are the most common malware vector. Recovering the original phishing email — including headers showing true origin, malicious attachments, and embedded links — is critical for attribution and building a complete timeline.',
+        location:'Outlook PST/OST, Thunderbird MBOX profile folder',
+        what:'Original phishing email with headers, attachment metadata, embedded link URLs, sender spoofing evidence',
+        os:['all'],
+        axiom:'AXIOM parses email archives and recovers deleted messages, exposing phishing emails the suspect may have tried to destroy.',
+      },
+      {
+        id:'usb_hist',
+        priority:'medium',
+        icon:'🔌',
+        name:'USB Device History',
+        why:'Malware is sometimes introduced via infected USB drives. USB history can establish that a device was connected immediately before the infection timeline begins — pointing to insider threat or physical access.',
+        location:'SYSTEM\\CurrentControlSet\\Enum\\USBSTOR',
+        what:'Device connected before infection time, serial number for device attribution, user who connected it',
+        os:['win10','win7','winxp'],
+        axiom:'AXIOM correlates USB connection times with malware execution timestamps to establish infection vector.',
+      },
+      {
+        id:'fs_info',
+        priority:'medium',
+        icon:'💾',
+        name:'File System & Unallocated Space',
+        why:'Malware operators often attempt to delete their tools after use. File carving from unallocated space can recover deleted malicious executables, config files, and exfiltrated data packages that were staged for upload.',
+        location:'Unallocated space across all volumes',
+        what:'Carved executable files, deleted scripts, staged data archives, encryption keys',
+        os:['all'],
+        axiom:'AXIOM performs deep file carving across all partitions, recovering deleted malware components and data archives.',
+      },
+    ],
+  },
+
+  {
+    id:'insider',
+    emoji:'👤',
+    name:'Insider Threat',
+    desc:'Malicious or negligent employee posing risk to organization data or systems',
+    scene:{
+      icon:'🔐',
+      title:'Scenario Context',
+      text:'A current or former employee is suspected of intentionally or negligently misusing their access to cause harm — including data sabotage, unauthorized access to sensitive systems, or leaking confidential information.',
+    },
+    artifacts:[
+      {
+        id:'event_logs',
+        priority:'critical',
+        icon:'📊',
+        name:'Event Logs (Access Audit Trail)',
+        why:'Event logs are the definitive record of system access. In insider threat cases, they reveal exactly when the subject logged in, which systems they accessed remotely, whether they escalated privileges, and if they disabled auditing — all critical for prosecution.',
+        location:'Security.evtx — Event IDs: 4624, 4634, 4672, 4688, 4740, 4771',
+        what:'All logon sessions with type, privilege assignments, process creation, account lockouts, policy changes',
+        os:['win10','win7'],
+        axiom:'AXIOM reconstructs complete user sessions from event logs and highlights privilege escalation and policy tampering events.',
+      },
+      {
+        id:'usb_hist',
+        priority:'critical',
+        icon:'🔌',
+        name:'USB Device History',
+        why:'Insider data theft almost always involves USB drives. The complete device history — combined with user attribution via MountPoints2 — creates a precise record of what was connected, when, and by which user account.',
+        location:'USBSTOR + MountedDevices + MountPoints2 (NTUSER.dat)',
+        what:'Full USB timeline with user attribution, device serial for physical device identification',
+        os:['win10','win7','winxp'],
+        axiom:'AXIOM\'s USB artifact module links device connections to specific user accounts and correlates with file access events.',
+      },
+      {
+        id:'shellbags',
+        priority:'critical',
+        icon:'📁',
+        name:'Shellbags',
+        why:'Shellbags prove a subject browsed specific network shares or sensitive directories — even if no files were copied. In insider cases, demonstrating unauthorized browsing of sensitive folders (HR, Finance, Executive) is itself significant.',
+        location:'UsrClass.dat (Win7+) / NTUSER.dat\\Software\\Microsoft\\Windows\\Shell (XP)',
+        what:'All folders browsed including network shares, deleted folders, removable device folders',
+        os:['win10','win7','winxp'],
+        axiom:'AXIOM presents shellbag folder trees with timestamps, making it easy to identify unauthorized browsing of sensitive directories.',
+      },
+      {
+        id:'user_accounts',
+        priority:'critical',
+        icon:'👥',
+        name:'User Accounts (SAM Hive)',
+        why:'The SAM hive reveals all local accounts, login counts, last login timestamps, and whether accounts were created or modified. Insiders sometimes create hidden backdoor accounts for persistent access after termination.',
+        location:'SAM\\Domains\\Account\\Users + HKLM\\Software\\Microsoft\\Windows NT\\CurrentVersion\\ProfileList',
+        what:'Account names, login counts, last login time, last password change, account creation date, disabled status',
+        os:['win10','win7','winxp'],
+        axiom:'AXIOM parses the SAM hive and ProfileList key, surfacing all user accounts including domain users and recently created/modified accounts.',
+      },
+      {
+        id:'lnk_files',
+        priority:'high',
+        icon:'🔗',
+        name:'LNK Files',
+        why:'LNK files reveal which sensitive files were opened and when. In insider cases, they establish that a subject specifically accessed HR records, executive communications, or trade secrets — rather than stumbling upon them accidentally.',
+        location:'%APPDATA%\\Microsoft\\Windows\\Recent\\ per user profile',
+        what:'Specific sensitive document access with timestamps, volume and path revealing access source',
+        os:['win10','win7','winxp'],
+        axiom:'AXIOM recovers LNK files per user profile and presents them in a consolidated file-access timeline.',
+      },
+      {
+        id:'email',
+        priority:'high',
+        icon:'📧',
+        name:'Email',
+        why:'Insiders often use personal email to exfiltrate sensitive data or communicate with external parties. Check for large attachments sent externally, forwarding rules set up to copy all email, and any encrypted communication patterns.',
+        location:'PST/OST archives, webmail browser artifacts',
+        what:'External sends, attachment sizes, email forwarding rules, contact with competitors, encrypted communications',
+        os:['all'],
+        axiom:'AXIOM recovers email archives and webmail sessions from browser cache, including forwarding rule configurations from Exchange.',
+      },
+      {
+        id:'network_shares',
+        priority:'high',
+        icon:'🌐',
+        name:'Network Shares',
+        why:'Network share registry entries reveal which network drives the subject mounted — providing evidence of access to specific server shares beyond their job role. Combined with shellbags, this creates a complete picture of unauthorized access.',
+        location:'HKCU\\Network\\ + HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Map Network Drive MRU',
+        what:'Mapped drive letters, UNC paths of network shares accessed, mapping timestamps',
+        os:['win10','win7','winxp'],
+        axiom:'AXIOM recovers network share history from NTUSER.dat hives across all user profiles on the system.',
+      },
+      {
+        id:'prefetch',
+        priority:'medium',
+        icon:'⚡',
+        name:'Prefetch Files',
+        why:'Prefetch reveals if the insider ran data aggregation tools, compression utilities, or sync applications that indicate deliberate data collection rather than normal work activity.',
+        location:'ROOT\\Windows\\Prefetch\\',
+        what:'Execution of zip/archiving tools, cloud sync apps, bulk copy utilities, any unusual tools',
+        os:['win10','win7','winxp'],
+        axiom:'AXIOM flags execution of known data exfiltration and staging tools against an automatically maintained reference list.',
+      },
+    ],
+  },
+
+  {
+    id:'harassment',
+    emoji:'⚠️',
+    name:'Harassment / HR',
+    desc:'Workplace harassment, cyberbullying, or threatening communications investigation',
+    scene:{
+      icon:'🛡️',
+      title:'Scenario Context',
+      text:'An employee or individual is accused of harassment, cyberbullying, or sending threatening communications via digital channels. Investigation must establish authorship, intent, and communication history.',
+    },
+    artifacts:[
+      {
+        id:'email',
+        priority:'critical',
+        icon:'📧',
+        name:'Email (Full Archive)',
+        why:'Email is the primary evidence source in harassment cases. Full archive recovery — including deleted items, draft messages never sent, and the complete headers proving actual sender — is the foundation of these investigations.',
+        location:'PST/OST: %LOCALAPPDATA%\\Microsoft\\Outlook\\ + Thunderbird MBOX profile',
+        what:'Full message content, headers (true sender IP), deleted message recovery, draft recovery, contact list',
+        os:['all'],
+        axiom:'AXIOM recovers PST/OST archives and deleted email content, including messages emptied from the Deleted Items folder.',
+      },
+      {
+        id:'browser_hist',
+        priority:'critical',
+        icon:'🌐',
+        name:'Browser History & Web Activity',
+        why:'Harassing messages sent via webmail, social media, or anonymous platforms leave traces in browser history. Browser artifacts prove which accounts were accessed, from which device, and when — establishing authorship.',
+        location:'Chrome History/Cookies: %LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default\\',
+        what:'Webmail access logs, social media sessions, anonymous messaging platforms, search history (victim research)',
+        os:['all'],
+        axiom:'AXIOM is purpose-built for browser artifact recovery, recovering full browsing sessions including private/incognito mode remnants.',
+      },
+      {
+        id:'lnk_files',
+        priority:'high',
+        icon:'🔗',
+        name:'LNK Files',
+        why:'LNK files prove that specific documents — threatening letters, harassing content, images of victims — were created or opened on the device, directly linking the subject to the content.',
+        location:'%APPDATA%\\Microsoft\\Windows\\Recent\\',
+        what:'Document access timestamps, paths to content created, file metadata of threatening material',
+        os:['win10','win7','winxp'],
+        axiom:'AXIOM recovers LNK files that link the subject to specific documents used in harassment even after deletion.',
+      },
+      {
+        id:'prefetch',
+        priority:'high',
+        icon:'⚡',
+        name:'Prefetch Files',
+        why:'Prefetch proves execution of specific messaging apps, social media clients, or email clients at exact times. Timestamps can be correlated directly with when harassing messages were sent or when threatening content was created.',
+        location:'ROOT\\Windows\\Prefetch\\',
+        what:'Email client execution timestamps, social media app execution, any anonymous messaging tools run',
+        os:['win10','win7','winxp'],
+        axiom:'AXIOM cross-references prefetch execution times with communication timestamps to establish active use during incident windows.',
+      },
+      {
+        id:'user_accounts',
+        priority:'high',
+        icon:'👥',
+        name:'User Accounts & Login Timestamps',
+        why:'User account login data proves the specific user — not just the device — was active during the time harassment occurred. This is critical for multi-user environments or shared computers where the subject may claim someone else was logged in.',
+        location:'SAM hive + Event Logs Security.evtx (Event ID 4624)',
+        what:'Specific user logon timestamps correlated with incident times, login type (interactive vs. remote)',
+        os:['win10','win7','winxp'],
+        axiom:'AXIOM combines SAM hive data and event logs to build a per-user session timeline proving who was logged in during incidents.',
+      },
+      {
+        id:'documents',
+        priority:'high',
+        icon:'📄',
+        name:'Document Metadata',
+        why:'If threatening letters or harassing documents were created, metadata proves authorship via the Author field, creation timestamp, and editing time — regardless of the subject\'s denials.',
+        location:'Embedded in .docx, .pdf, .odt file properties',
+        what:'Author field, last modified by, creation time, total editing time, document title',
+        os:['all'],
+        axiom:'AXIOM extracts document metadata from all found files and presents it in a structured evidence report.',
+      },
+      {
+        id:'timezone',
+        priority:'medium',
+        icon:'🕐',
+        name:'Timezone Information',
+        why:'System timezone is critical for correctly interpreting all timestamps. Inconsistencies between system timezone and the geographic location of the device can indicate timezone manipulation to create a false alibi.',
+        location:'HKLM\\SYSTEM\\CurrentControlSet\\Control\\TimeZoneInformation',
+        what:'Current timezone, UTC offset, daylight saving state — essential for all timestamp analysis',
+        os:['win10','win7','winxp'],
+        axiom:'AXIOM automatically normalizes all artifact timestamps to UTC and records the system timezone for correct interpretation.',
+      },
+    ],
+  },
+
+  {
+    id:'data_breach',
+    emoji:'🛡️',
+    name:'Data Breach',
+    desc:'External or internal unauthorized access to sensitive corporate or personal data',
+    scene:{
+      icon:'🚨',
+      title:'Scenario Context',
+      text:'Sensitive data has been accessed or exfiltrated without authorization. Investigation must determine the scope of data accessed, method of unauthorized entry, timeline of the breach, and whether data was destroyed or transmitted externally.',
+    },
+    artifacts:[
+      {
+        id:'event_logs',
+        priority:'critical',
+        icon:'📊',
+        name:'Event Logs (Intrusion Timeline)',
+        why:'In a data breach, event logs are the authoritative record of the intrusion. They document every failed and successful authentication, every privilege escalation, every new service installation (backdoor), and any lateral movement across systems.',
+        location:'Security.evtx — critical Event IDs: 4625, 4624, 4648, 4672, 4719, 7045',
+        what:'Full authentication trail, network logon events (type 3), RDP sessions (type 10), privilege escalation, policy modifications',
+        os:['win10','win7'],
+        axiom:'AXIOM parses all event log categories and automatically surfaces intrusion-relevant event IDs with timeline visualization.',
+      },
+      {
+        id:'browser_hist',
+        priority:'critical',
+        icon:'🌐',
+        name:'Browser & Cloud Upload History',
+        why:'Data exfiltration increasingly happens via browser-based cloud storage — Google Drive, Dropbox, OneDrive uploads. Browser history, download records, and form data capture the complete upload trail.',
+        location:'Browser history databases + %APPDATA% cloud sync client logs',
+        what:'Cloud service upload activities, file transfer URLs, download history, cloud account logins, form submissions',
+        os:['all'],
+        axiom:'AXIOM recovers cloud service artifacts from browser history and cloud sync client databases, identifying what was uploaded and when.',
+      },
+      {
+        id:'usb_hist',
+        priority:'critical',
+        icon:'🔌',
+        name:'USB Device History',
+        why:'If data was exfiltrated physically, USB history provides the device fingerprint. The serial number can be matched to a physical device, and the connection timeline can be correlated with data access events.',
+        location:'SYSTEM\\CurrentControlSet\\Enum\\USBSTOR + MountPoints2',
+        what:'Device fingerprint, connection time, user who connected, drive letter assigned',
+        os:['win10','win7','winxp'],
+        axiom:'AXIOM creates a complete USB device timeline with user attribution, supporting chain-of-custody documentation.',
+      },
+      {
+        id:'registry_run',
+        priority:'critical',
+        icon:'🗝️',
+        name:'Registry Persistence Keys',
+        why:'Sophisticated breach actors install persistent backdoors via registry Run keys or scheduled tasks to maintain access. These entries remain even after the actor believes they\'ve cleaned up.',
+        location:'HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run + HKLM\\SYSTEM\\CurrentControlSet\\Services',
+        what:'Unauthorized persistence commands, backdoor service registrations, encoded/obfuscated launch commands',
+        os:['win10','win7','winxp'],
+        axiom:'AXIOM scans all persistence registry locations and compares against known-good baselines to identify unauthorized entries.',
+      },
+      {
+        id:'prefetch',
+        priority:'high',
+        icon:'⚡',
+        name:'Prefetch Files',
+        why:'Prefetch proves execution of attacker tools — port scanners, credential dumpers (mimikatz), lateral movement tools (psexec), or data staging utilities — with precise timestamps establishing the attack timeline.',
+        location:'ROOT\\Windows\\Prefetch\\',
+        what:'Execution timestamps for attack tools, tool paths (temp directories), run counts indicating systematic operation',
+        os:['win10','win7','winxp'],
+        axiom:'AXIOM flags prefetch entries matching known attack tool names and suspicious execution paths automatically.',
+      },
+      {
+        id:'shellbags',
+        priority:'high',
+        icon:'📁',
+        name:'Shellbags',
+        why:'If an attacker (or insider) browsed network shares or sensitive file server directories looking for valuable data, shellbags provide a map of exactly what directories were explored — even after the access.',
+        location:'UsrClass.dat\\Local Settings\\Software\\Microsoft\\Windows\\Shell\\BagMRU',
+        what:'All network shares and file server paths browsed, helping establish reconnaissance and data identification activity',
+        os:['win10','win7','winxp'],
+        axiom:'AXIOM decodes shellbag structures and maps the browsed folder hierarchy including remote network paths.',
+      },
+      {
+        id:'os_info',
+        priority:'medium',
+        icon:'🖥️',
+        name:'OS & File System Information',
+        why:'OS information establishes the exact system state — Windows version, patch level, last shutdown time, and file system details. Unpatched vulnerabilities may explain the attack vector. Last shutdown time can reveal if the attacker powered off the system.',
+        location:'HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion + HKLM\\SYSTEM\\CurrentControlSet\\Control\\Windows',
+        what:'OS version, patch/service pack level, install date, last shutdown time, volume serial number',
+        os:['win10','win7','winxp'],
+        axiom:'AXIOM automatically extracts and displays OS baseline information as part of every case examination.',
+      },
+    ],
+  },
+
+  {
+    id:'missing_person',
+    emoji:'🔎',
+    name:'Missing Person',
+    desc:'Locating a missing individual using digital breadcrumbs and last-known activities',
+    scene:{
+      icon:'📍',
+      title:'Scenario Context',
+      text:'A person has gone missing and their device may contain critical last-known location data, communication history, and activity timeline. Digital artifacts can establish the last verified activity before disappearance.',
+    },
+    artifacts:[
+      {
+        id:'browser_hist',
+        priority:'critical',
+        icon:'🌐',
+        name:'Browser History & Search Queries',
+        why:'Browser history is often the most revealing artifact in missing person cases. Search queries in the days and hours before disappearance — locations searched, routes mapped, people contacted — can reconstruct intent and destination.',
+        location:'Chrome: %LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default\\History',
+        what:'Search queries, maps/directions searched, accommodation lookups, contact searches, last browsing session timestamp',
+        os:['all'],
+        axiom:'AXIOM recovers full browser history including search queries from all major browsers with precise timestamps for timeline construction.',
+      },
+      {
+        id:'email',
+        priority:'critical',
+        icon:'📧',
+        name:'Email & Messaging',
+        why:'Last communications before disappearance — including any messages indicating plans, distress, threats received, or contact with unknown individuals — are critical. Recover drafts and deleted messages that may contain communications the person attempted to hide.',
+        location:'PST/OST archives + webmail browser artifacts + messaging app databases',
+        what:'Final communications, draft messages, deleted sent items, contact with unknown individuals, geolocation data in email metadata',
+        os:['all'],
+        axiom:'AXIOM recovers email, SMS, and messaging app data from devices, including deleted content and draft messages.',
+      },
+      {
+        id:'lnk_files',
+        priority:'high',
+        icon:'🔗',
+        name:'LNK Files (Last File Activity)',
+        why:'LNK files establish the last documents the person opened — potentially including travel documents, maps, identity documents, or personal records that reveal what they were planning or preparing.',
+        location:'%APPDATA%\\Microsoft\\Windows\\Recent\\',
+        what:'Last document access timestamps, file paths indicating documents prepared before disappearance',
+        os:['win10','win7','winxp'],
+        axiom:'AXIOM presents LNK files in chronological order, making it easy to see the last files accessed before the device went offline.',
+      },
+      {
+        id:'prefetch',
+        priority:'high',
+        icon:'⚡',
+        name:'Prefetch (Last Application Usage)',
+        why:'Prefetch files reveal which applications were last used — mapping apps, communication tools, VPN clients, or encrypted messaging platforms — giving insight into the person\'s state and intentions before disappearance.',
+        location:'ROOT\\Windows\\Prefetch\\',
+        what:'Last application execution timestamps, VPN or anonymous browsing tool usage, communication app activity',
+        os:['win10','win7','winxp'],
+        axiom:'AXIOM presents prefetch execution history in a timeline view that can be narrowed to the critical window before disappearance.',
+      },
+      {
+        id:'timezone',
+        priority:'high',
+        icon:'🕐',
+        name:'Timezone & OS Timestamps',
+        why:'Timezone calibration is essential for correlating device timestamps with real-world events. Establishing the last system activity timestamp — the last time the device touched a network or the OS registered activity — helps establish the last known timeline.',
+        location:'HKLM\\SYSTEM\\CurrentControlSet\\Control\\TimeZoneInformation + OS shutdown registry keys',
+        what:'System timezone, last shutdown time, last network connection time, OS install date',
+        os:['win10','win7','winxp'],
+        axiom:'AXIOM normalizes all timestamps to UTC and logs last system shutdown time as part of the baseline OS report.',
+      },
+      {
+        id:'user_accounts',
+        priority:'medium',
+        icon:'👥',
+        name:'User Accounts & Last Login',
+        why:'Last login timestamps from the SAM hive establish the final verified time the person was at the device. This anchors the entire timeline and confirms ownership of the activity record.',
+        location:'SAM\\Domains\\Account\\Users + Event Log Event ID 4624',
+        what:'Last login timestamp, login count, profile creation date — establishing device ownership and last use',
+        os:['win10','win7','winxp'],
+        axiom:'AXIOM extracts user account data and correlates last login with event log timestamps to confirm last verified device access.',
+      },
+    ],
+  },
+];
+
+/* ═══════════════════════════════════════════════════
+   STATE
+═══════════════════════════════════════════════════ */
+let selectedScenario = null;
+let selectedOS = 'all';
+let checked = new Set();
+
+/* ═══════════════════════════════════════════════════
+   INIT
+═══════════════════════════════════════════════════ */
+window.addEventListener('DOMContentLoaded', () => {
+  buildScenarioGrid();
+  buildOsRow();
+});
+
+function buildScenarioGrid(){
+  const g = document.getElementById('scenarioGrid');
+  SCENARIOS.forEach(s => {
+    const btn = document.createElement('button');
+    btn.className = 'sc-btn';
+    btn.id = 'sc-' + s.id;
+    btn.innerHTML = `<span class="sc-emoji">${s.emoji}</span><div class="sc-name">${s.name}</div><div class="sc-desc">${s.desc}</div>`;
+    btn.onclick = () => selectScenario(s.id);
+    g.appendChild(btn);
+  });
+}
+
+function buildOsRow(){
+  const r = document.getElementById('osRow');
+  OS_OPTIONS.forEach(o => {
+    const btn = document.createElement('button');
+    btn.className = 'os-btn' + (o.id === selectedOS ? ' active' : '');
+    btn.id = 'os-' + o.id;
+    btn.innerHTML = `<div class="os-dot"></div>${o.icon} ${o.label}`;
+    btn.onclick = () => selectOS(o.id);
+    r.appendChild(btn);
+  });
+}
+
+function selectScenario(id){
+  selectedScenario = id;
+  checked = new Set();
+  document.querySelectorAll('.sc-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('sc-' + id).classList.add('active');
+  renderResults();
+}
+
+function selectOS(id){
+  selectedOS = id;
+  document.querySelectorAll('.os-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('os-' + id).classList.add('active');
+  if(selectedScenario) renderResults();
+}
+
+/* ═══════════════════════════════════════════════════
+   RENDER RESULTS
+═══════════════════════════════════════════════════ */
+function renderResults(){
+  const scenario = SCENARIOS.find(s => s.id === selectedScenario);
+  if(!scenario) return;
+
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('resultsPanel').style.display = 'block';
+  document.getElementById('checklistFooter').style.display = 'block';
+
+  // Filter artifacts by OS
+  const artifacts = scenario.artifacts.filter(a => {
+    if(selectedOS === 'all') return true;
+    return a.os.includes(selectedOS) || a.os.includes('all');
+  });
+
+  // Case label
+  document.getElementById('caseLabel').textContent = `— ${scenario.name}`;
+
+  // Stats
+  const crit = artifacts.filter(a => a.priority === 'critical').length;
+  const high = artifacts.filter(a => a.priority === 'high').length;
+  const med  = artifacts.filter(a => a.priority === 'medium').length;
+  document.getElementById('statsBar').innerHTML = `
+    <div class="stat-cell"><div class="stat-num c">${crit}</div><div class="stat-lbl">Critical</div></div>
+    <div class="stat-cell"><div class="stat-num h">${high}</div><div class="stat-lbl">High</div></div>
+    <div class="stat-cell"><div class="stat-num m">${med}</div><div class="stat-lbl">Medium</div></div>
+    <div class="stat-cell"><div class="stat-num">${artifacts.length}</div><div class="stat-lbl">Total Artifacts</div></div>
+  `;
+
+  // Scene
+  const sc = scenario.scene;
+  document.getElementById('sceneBox').innerHTML = `
+    <div class="scene-icon">${sc.icon}</div>
+    <div class="scene-text">
+      <div class="scene-title">${sc.title}: ${scenario.name}</div>
+      <p>${sc.text}</p>
+    </div>
+  `;
+
+  // Artifacts grouped by priority
+  const list = document.getElementById('artifactList');
+  list.innerHTML = '';
+
+  const groups = [
+    {key:'critical', label:'Critical Priority', color:'var(--red)'},
+    {key:'high',     label:'High Priority',     color:'var(--amber)'},
+    {key:'medium',   label:'Medium Priority',   color:'var(--cyan)'},
+  ];
+
+  groups.forEach((g, gi) => {
+    const items = artifacts.filter(a => a.priority === g.key);
+    if(!items.length) return;
+
+    const sec = document.createElement('div');
+    sec.className = `artifact-section fade-up fade-up-d${gi+1}`;
+    sec.innerHTML = `
+      <div class="priority-header">
+        <div class="priority-pip" style="background:${g.color};box-shadow:0 0 6px ${g.color};"></div>
+        <div class="priority-label" style="color:${g.color};">${g.label}</div>
+        <div class="priority-count">${items.length} artifact${items.length>1?'s':''}</div>
+      </div>
+    `;
+
+    items.forEach(art => {
+      const card = document.createElement('div');
+      card.className = `artifact-card p-${art.priority}`;
+      card.id = 'card-' + art.id;
+      const isChecked = checked.has(art.id);
+      card.innerHTML = `
+        <div class="ac-head" onclick="toggleCard('${art.id}')">
+          <div class="ac-check ${isChecked?'checked':''}" onclick="event.stopPropagation();toggleCheck('${art.id}')"></div>
+          <div class="ac-icon">${art.icon}</div>
+          <div class="ac-name">${art.name}</div>
+          <div class="ac-priority">${art.priority}</div>
+          <div class="ac-chevron">▶</div>
+        </div>
+        <div class="ac-body">
+          <div class="ac-why">${art.why}</div>
+          <div class="ac-meta">
+            <div class="meta-block">
+              <div class="meta-label">Registry / File Location</div>
+              <div class="meta-val"><code>${art.location}</code></div>
+            </div>
+            <div class="meta-block">
+              <div class="meta-label">Key Evidence Captured</div>
+              <div class="meta-val">${art.what}</div>
+            </div>
+          </div>
+          <div class="ac-axiom">
+            <div class="axiom-dot"></div>
+            <span><strong>AXIOM Coverage:</strong> ${art.axiom}</span>
+          </div>
+        </div>
+      `;
+      sec.appendChild(card);
+    });
+
+    list.appendChild(sec);
+  });
+
+  updateProgress(artifacts.length);
+}
+
+function toggleCard(id){
+  const card = document.getElementById('card-' + id);
+  card.classList.toggle('expanded');
+}
+
+function toggleCheck(id){
+  if(checked.has(id)) checked.delete(id);
+  else checked.add(id);
+
+  const checkEl = document.querySelector(`#card-${id} .ac-check`);
+  if(checkEl) checkEl.classList.toggle('checked', checked.has(id));
+
+  const scenario = SCENARIOS.find(s => s.id === selectedScenario);
+  const total = scenario ? scenario.artifacts.filter(a => selectedOS === 'all' || a.os.includes(selectedOS) || a.os.includes('all')).length : 0;
+  updateProgress(total);
+}
+
+function updateProgress(total){
+  const n = checked.size;
+  const pct = total > 0 ? (n / total * 100) : 0;
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressLabel').textContent = `${n} / ${total} collected`;
+}
+
+function resetChecks(){
+  checked = new Set();
+  document.querySelectorAll('.ac-check').forEach(c => c.classList.remove('checked'));
+  const scenario = SCENARIOS.find(s => s.id === selectedScenario);
+  const total = scenario ? scenario.artifacts.length : 0;
+  updateProgress(total);
+}
+
+function exportChecklist(){
+  const scenario = SCENARIOS.find(s => s.id === selectedScenario);
+  if(!scenario) return;
+
+  const artifacts = scenario.artifacts.filter(a =>
+    selectedOS === 'all' || a.os.includes(selectedOS) || a.os.includes('all')
+  );
+
+  let text = `MAGNET FORENSICS — INVESTIGATION ARTIFACT CHECKLIST\n`;
+  text += `═══════════════════════════════════════════════════\n`;
+  text += `Case Type: ${scenario.name}\n`;
+  text += `Platform: ${OS_OPTIONS.find(o=>o.id===selectedOS)?.label}\n`;
+  text += `Generated: ${new Date().toLocaleString()}\n\n`;
+
+  ['critical','high','medium'].forEach(p => {
+    const items = artifacts.filter(a => a.priority === p);
+    if(!items.length) return;
+    text += `[${p.toUpperCase()} PRIORITY]\n`;
+    items.forEach(a => {
+      const status = checked.has(a.id) ? '[✓]' : '[ ]';
+      text += `\n${status} ${a.name}\n`;
+      text += `    WHY: ${a.why.substring(0,120)}...\n`;
+      text += `    LOCATION: ${a.location}\n`;
+      text += `    CAPTURES: ${a.what}\n`;
+      text += `    AXIOM: ${a.axiom.substring(0,100)}...\n`;
+    });
+    text += '\n';
+  });
+
+  text += `\n═══════════════════════════════════════════════════\n`;
+  text += `Tool: Magnet AXIOM · magnetforensics.com\n`;
+
+  const blob = new Blob([text], {type:'text/plain'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `checklist-${scenario.id}-${Date.now()}.txt`;
+  a.click();
+}
+</script>
+</body>
+</html>
