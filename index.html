@@ -3,7 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Investigation Scenario Builder — Magnet Forensics</title>
+<title>Investigation Scenario Builder — DFIR Artifact Triage Planner</title>
+<meta name="description" content="Vendor-neutral digital forensics triage planner. Pick a case type and platforms to get a prioritized artifact checklist with file paths, MITRE ATT&CK mapping and open-source tooling. Built by zov911.">
+<meta name="author" content="zov911">
+<meta property="og:title" content="Investigation Scenario Builder — DFIR Artifact Triage Planner">
+<meta property="og:description" content="Prioritized forensic artifact checklists for IP theft, ransomware, BEC, insider threat and more — Windows, macOS, Linux, mobile and cloud.">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#080c10">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23080c10'/%3E%3Ccircle cx='14' cy='14' r='7' fill='none' stroke='%2300d4ff' stroke-width='3'/%3E%3Cpath d='M19 19l7 7' stroke='%2300d4ff' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
 /* ═══════════════════════════════════════
@@ -15,19 +23,21 @@
   --bg3:       #111820;
   --bg4:       #161e28;
   --border:    #1e2d3d;
-  --border2:   #253545;
+  --border2:   #2b3f52;
   --cyan:      #00d4ff;
   --cyan-dim:  rgba(0,212,255,0.08);
   --cyan-glow: rgba(0,212,255,0.25);
   --green:     #00ff88;
   --green-dim: rgba(0,255,136,0.08);
-  --red:       #ff4444;
-  --red-dim:   rgba(255,68,68,0.08);
+  --red:       #ff5c5c;
+  --red-dim:   rgba(255,92,92,0.08);
   --amber:     #ffaa00;
   --amber-dim: rgba(255,170,0,0.08);
+  --violet:    #b48cff;
+  --violet-dim:rgba(180,140,255,0.10);
   --text:      #cdd9e5;
-  --muted:     #5c7a96;
-  --dim:       #334455;
+  --muted:     #7b95ad;
+  --dim:       #4a6278;
   --r:         6px;
 }
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -39,16 +49,15 @@ body{
   font-size:13px;
   min-height:100vh;
   overflow-x:hidden;
-  cursor:default;
 }
+button,input{font:inherit;color:inherit;}
+:focus-visible{outline:2px solid var(--cyan);outline-offset:2px;}
+a{color:var(--cyan);}
 
-/* ── Scan-line overlay ── */
 body::after{
   content:'';position:fixed;inset:0;pointer-events:none;z-index:999;
   background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.03) 2px,rgba(0,0,0,0.03) 4px);
 }
-
-/* ── Grid bg ── */
 body::before{
   content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
   background-image:
@@ -57,415 +66,222 @@ body::before{
   background-size:40px 40px;
 }
 
-/* ═══════════════════════════════════════
-   LAYOUT
-═══════════════════════════════════════ */
-.shell{
-  position:relative;z-index:1;
-  max-width:1160px;margin:0 auto;
-  padding:0 16px 80px;
-}
+.shell{position:relative;z-index:1;max-width:1160px;margin:0 auto;padding:0 16px 40px;}
 
-/* ═══════════════════════════════════════
-   HEADER
-═══════════════════════════════════════ */
-.top-bar{
-  display:flex;align-items:center;
-  padding:16px 0;
-  border-bottom:1px solid var(--border);
-  margin-bottom:0;
-  gap:12px;
-}
-.tb-dot{width:8px;height:8px;border-radius:50%;background:var(--cyan);box-shadow:0 0 8px var(--cyan);}
-.tb-dot.g{background:var(--green);box-shadow:0 0 8px var(--green);}
-.tb-dot.r{background:var(--red);box-shadow:0 0 8px var(--red);}
-.tb-path{
-  font-size:11px;color:var(--muted);letter-spacing:0.5px;
-  flex:1;
-}
+/* ── Top bar ── */
+.top-bar{display:flex;align-items:center;padding:16px 0;border-bottom:1px solid var(--border);gap:12px;}
+.tb-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.tb-path{font-size:11px;color:var(--muted);letter-spacing:0.5px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .tb-path span{color:var(--cyan);}
 .tb-badge{
-  font-size:10px;font-weight:700;letter-spacing:1px;
-  color:var(--cyan);border:1px solid var(--cyan);
-  padding:3px 10px;border-radius:2px;
-  text-transform:uppercase;
-  box-shadow:0 0 8px var(--cyan-glow);
+  font-size:10px;font-weight:700;letter-spacing:1px;color:var(--cyan);
+  border:1px solid var(--cyan);padding:3px 10px;border-radius:2px;
+  text-transform:uppercase;box-shadow:0 0 8px var(--cyan-glow);white-space:nowrap;
 }
 
 /* ── Hero ── */
-.hero{
-  padding:56px 0 48px;
-  border-bottom:1px solid var(--border);
-}
-.hero-tag{
-  font-size:11px;font-weight:700;letter-spacing:2px;
-  color:var(--cyan);text-transform:uppercase;
-  margin-bottom:14px;
-  display:flex;align-items:center;gap:8px;
-}
+.hero{padding:52px 0 40px;border-bottom:1px solid var(--border);display:grid;grid-template-columns:1fr auto;gap:32px;align-items:end;}
+.hero-tag{font-size:11px;font-weight:700;letter-spacing:2px;color:var(--cyan);text-transform:uppercase;margin-bottom:14px;display:flex;align-items:center;gap:8px;}
 .hero-tag::before{content:'▶';font-size:8px;}
-.hero h1{
-  font-family:'Syne',sans-serif;
-  font-size:clamp(28px,5vw,52px);
-  font-weight:800;line-height:1.05;
-  color:#fff;letter-spacing:-0.5px;
-  margin-bottom:16px;
-}
-.hero h1 em{
-  font-style:normal;
-  color:var(--cyan);
-  text-shadow:0 0 30px var(--cyan-glow);
-}
-.hero-sub{
-  font-size:13px;color:var(--muted);
-  line-height:1.8;max-width:600px;
-}
+.hero h1{font-family:'Syne',sans-serif;font-size:clamp(30px,5vw,54px);font-weight:800;line-height:1.05;color:#fff;letter-spacing:-0.5px;margin-bottom:16px;}
+.hero h1 em{font-style:normal;color:var(--cyan);text-shadow:0 0 30px var(--cyan-glow);}
+.hero-sub{font-size:13px;color:var(--muted);line-height:1.8;max-width:640px;}
+.hero-facts{display:grid;grid-template-columns:repeat(2,auto);gap:10px 22px;}
+.hf{border-left:2px solid var(--border2);padding-left:10px;}
+.hf b{display:block;font-family:'Syne',sans-serif;font-size:24px;color:#fff;line-height:1;}
+.hf span{font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;}
+@media(max-width:760px){.hero{grid-template-columns:1fr;}.hero-facts{grid-template-columns:repeat(4,auto);}}
+@media(max-width:480px){.hero-facts{grid-template-columns:repeat(2,auto);}}
 
-/* ═══════════════════════════════════════
-   STEP 1 — SCENARIO PICKER
-═══════════════════════════════════════ */
-.section{padding:40px 0;}
-.sec-label{
-  font-size:10px;font-weight:700;letter-spacing:2px;
-  color:var(--muted);text-transform:uppercase;
-  margin-bottom:20px;
-  display:flex;align-items:center;gap:8px;
-}
-.sec-label::before{
-  content:'';width:24px;height:1px;background:var(--border2);
-}
+/* ── Sections ── */
+.section{padding:36px 0 0;}
+.sec-label{font-size:10px;font-weight:700;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:18px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.sec-label::before{content:'';width:24px;height:1px;background:var(--border2);}
 .sec-label span{color:var(--cyan);}
 
-.scenario-grid{
-  display:grid;
-  grid-template-columns:repeat(auto-fill,minmax(200px,1fr));
-  gap:10px;
-}
+.scenario-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;}
 .sc-btn{
-  background:var(--bg2);
-  border:1px solid var(--border);
-  border-radius:var(--r);
-  padding:20px 16px 18px;
-  cursor:pointer;
-  text-align:left;
-  transition:all 0.2s ease;
-  position:relative;
-  overflow:hidden;
+  background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);
+  padding:18px 16px 16px;cursor:pointer;text-align:left;transition:all 0.2s ease;
+  position:relative;overflow:hidden;
 }
-.sc-btn::before{
-  content:'';
-  position:absolute;top:0;left:0;right:0;height:2px;
-  background:transparent;
-  transition:background 0.2s;
-}
-.sc-btn:hover{
-  border-color:var(--border2);
-  background:var(--bg3);
-  transform:translateY(-2px);
-}
-.sc-btn.active{
-  border-color:var(--cyan);
-  background:var(--cyan-dim);
-  box-shadow:0 0 20px rgba(0,212,255,0.1), inset 0 0 20px rgba(0,212,255,0.03);
-}
+.sc-btn::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:transparent;transition:background 0.2s;}
+.sc-btn:hover{border-color:var(--border2);background:var(--bg3);transform:translateY(-2px);}
+.sc-btn.active{border-color:var(--cyan);background:var(--cyan-dim);box-shadow:0 0 20px rgba(0,212,255,0.1), inset 0 0 20px rgba(0,212,255,0.03);}
 .sc-btn.active::before{background:var(--cyan);}
-.sc-emoji{font-size:24px;margin-bottom:10px;line-height:1;display:block;}
-.sc-name{
-  font-family:'Syne',sans-serif;
-  font-size:14px;font-weight:700;
-  color:var(--text);margin-bottom:4px;
-  line-height:1.2;
-}
+.sc-emoji{font-size:22px;margin-bottom:10px;line-height:1;display:block;}
+.sc-name{font-family:'Syne',sans-serif;font-size:14px;font-weight:700;color:var(--text);margin-bottom:4px;line-height:1.2;}
 .sc-btn.active .sc-name{color:var(--cyan);}
 .sc-desc{font-size:11px;color:var(--muted);line-height:1.5;}
+.sc-new{position:absolute;top:10px;right:10px;font-size:9px;font-weight:700;letter-spacing:1px;color:var(--violet);border:1px solid var(--violet);padding:1px 6px;border-radius:2px;}
 
-/* ═══════════════════════════════════════
-   STEP 2 — OS FILTER
-═══════════════════════════════════════ */
-.os-row{display:flex;gap:8px;flex-wrap:wrap;}
+.os-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
 .os-btn{
-  background:var(--bg2);
-  border:1px solid var(--border);
-  border-radius:var(--r);
-  padding:7px 16px;
-  font-family:'JetBrains Mono',monospace;
-  font-size:12px;font-weight:500;
-  color:var(--muted);cursor:pointer;
-  transition:all 0.15s;
-  display:flex;align-items:center;gap:6px;
+  background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);
+  padding:7px 14px;font-size:12px;font-weight:500;color:var(--muted);cursor:pointer;
+  transition:all 0.15s;display:flex;align-items:center;gap:6px;
 }
 .os-btn:hover{border-color:var(--border2);color:var(--text);}
-.os-btn.active{
-  border-color:var(--green);
-  color:var(--green);background:var(--green-dim);
-}
-.os-dot{width:6px;height:6px;border-radius:50%;background:currentColor;}
+.os-btn[aria-pressed="true"]{border-color:var(--green);color:var(--green);background:var(--green-dim);}
+.os-box{width:12px;height:12px;border:1.5px solid currentColor;border-radius:2px;display:inline-flex;align-items:center;justify-content:center;font-size:9px;line-height:1;}
+.os-btn[aria-pressed="true"] .os-box::after{content:'✓';}
+.os-hint{font-size:11px;color:var(--dim);margin-left:4px;}
 
-/* ═══════════════════════════════════════
-   RESULTS PANEL
-═══════════════════════════════════════ */
-#resultsPanel{display:none;}
+/* ── Results ── */
+#resultsPanel{display:none;padding-top:36px;}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:18px;}
+.search{
+  flex:1;min-width:200px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);
+  padding:9px 12px;font-size:12px;outline:none;transition:border-color .15s;
+}
+.search:focus{border-color:var(--cyan);}
+.search::placeholder{color:var(--dim);}
+.tool-btn{
+  background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:8px 12px;
+  font-size:11px;color:var(--muted);cursor:pointer;transition:all .15s;white-space:nowrap;
+}
+.tool-btn:hover{border-color:var(--border2);color:var(--text);}
 
-/* Stats bar */
-.stats-bar{
-  display:flex;gap:0;
-  background:var(--bg2);
-  border:1px solid var(--border);
-  border-radius:var(--r);
-  overflow:hidden;
-  margin-bottom:24px;
-}
-.stat-cell{
-  flex:1;padding:14px 18px;
-  border-right:1px solid var(--border);
-  position:relative;
-}
+.case-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:18px;}
+@media(max-width:560px){.case-row{grid-template-columns:1fr;}}
+.case-field{display:flex;flex-direction:column;gap:4px;}
+.case-field label{font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);}
+.case-field input{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:8px 10px;font-size:12px;outline:none;}
+.case-field input:focus{border-color:var(--cyan);}
+
+.stats-bar{display:flex;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:20px;}
+.stat-cell{flex:1;padding:14px 18px;border-right:1px solid var(--border);}
 .stat-cell:last-child{border-right:none;}
-.stat-num{
-  font-family:'Syne',sans-serif;
-  font-size:26px;font-weight:800;
-  line-height:1;color:var(--text);
-}
+.stat-num{font-family:'Syne',sans-serif;font-size:26px;font-weight:800;line-height:1;color:var(--text);}
 .stat-num.c{color:var(--red);}
 .stat-num.h{color:var(--amber);}
 .stat-num.m{color:var(--cyan);}
+.stat-num.g{color:var(--green);}
 .stat-lbl{font-size:10px;color:var(--muted);margin-top:3px;letter-spacing:0.5px;text-transform:uppercase;}
 
-/* Scene context */
 .scene-box{
-  background:var(--bg2);
-  border:1px solid var(--border);
-  border-left:3px solid var(--cyan);
-  border-radius:var(--r);
-  padding:16px 20px;
-  margin-bottom:28px;
-  display:flex;gap:14px;align-items:flex-start;
+  background:var(--bg2);border:1px solid var(--border);border-left:3px solid var(--cyan);
+  border-radius:var(--r);padding:16px 20px;margin-bottom:24px;display:flex;gap:14px;align-items:flex-start;
 }
 .scene-icon{font-size:22px;flex-shrink:0;line-height:1;margin-top:2px;}
-.scene-text .scene-title{
-  font-family:'Syne',sans-serif;
-  font-size:14px;font-weight:700;
-  color:var(--cyan);margin-bottom:5px;
-}
+.scene-title{font-family:'Syne',sans-serif;font-size:14px;font-weight:700;color:var(--cyan);margin-bottom:5px;}
 .scene-text p{font-size:12px;color:var(--muted);line-height:1.7;}
+.scene-text .first{margin-top:10px;color:var(--text);}
+.scene-text .first b{color:var(--amber);font-weight:700;}
 
-/* Artifact list */
-.artifact-section{margin-bottom:8px;}
-.priority-header{
-  display:flex;align-items:center;gap:10px;
-  padding:10px 0 8px;
-  margin-bottom:8px;
-  border-bottom:1px solid var(--border);
-}
-.priority-pip{
-  width:8px;height:8px;border-radius:50%;flex-shrink:0;
-}
-.priority-label{
-  font-size:10px;font-weight:700;letter-spacing:1.5px;
-  text-transform:uppercase;
-}
-.priority-count{
-  font-size:10px;color:var(--muted);
-  background:var(--bg3);
-  border:1px solid var(--border);
-  padding:1px 7px;border-radius:10px;
-}
+.artifact-section{margin-bottom:10px;}
+.priority-header{display:flex;align-items:center;gap:10px;padding:10px 0 8px;margin-bottom:8px;border-bottom:1px solid var(--border);}
+.priority-pip{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.priority-label{font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;}
+.priority-count{font-size:10px;color:var(--muted);background:var(--bg3);border:1px solid var(--border);padding:1px 7px;border-radius:10px;}
 
-/* Artifact card */
-.artifact-card{
-  background:var(--bg2);
-  border:1px solid var(--border);
-  border-radius:var(--r);
-  margin-bottom:8px;
-  overflow:hidden;
-  transition:border-color 0.2s;
-  cursor:pointer;
-}
-.artifact-card:hover{border-color:var(--border2);}
-.artifact-card.expanded{border-color:var(--border2);}
-
-.ac-head{
-  display:flex;align-items:center;
-  gap:12px;padding:14px 16px;
-}
-.ac-check{
-  width:18px;height:18px;
-  border:1.5px solid var(--border2);
-  border-radius:3px;flex-shrink:0;
-  display:flex;align-items:center;justify-content:center;
-  transition:all 0.15s;cursor:pointer;
-  position:relative;z-index:2;
-}
-.ac-check.checked{
-  background:var(--green);border-color:var(--green);
-}
-.ac-check.checked::after{
-  content:'✓';font-size:11px;font-weight:700;color:#000;
-}
+.artifact-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);margin-bottom:8px;overflow:hidden;transition:border-color 0.2s;}
+.artifact-card:hover,.artifact-card.expanded{border-color:var(--border2);}
+.artifact-card.done{opacity:.62;}
+.ac-head{display:flex;align-items:center;gap:12px;padding:12px 16px;}
+.ac-check{appearance:none;-webkit-appearance:none;width:18px;height:18px;border:1.5px solid var(--border2);border-radius:3px;flex-shrink:0;display:grid;place-content:center;cursor:pointer;transition:all .15s;background:transparent;}
+.ac-check:checked{background:var(--green);border-color:var(--green);}
+.ac-check:checked::after{content:'✓';font-size:11px;font-weight:700;color:#000;}
+.ac-toggle{flex:1;display:flex;align-items:center;gap:12px;background:none;border:none;cursor:pointer;text-align:left;min-width:0;padding:2px 0;}
 .ac-icon{font-size:18px;flex-shrink:0;}
-.ac-name{
-  font-family:'Syne',sans-serif;
-  font-size:13px;font-weight:700;
-  color:var(--text);flex:1;
-}
-.artifact-card.p-critical .ac-name{color:#ff9090;}
-.artifact-card.p-high .ac-name{color:#ffd090;}
-.artifact-card.p-medium .ac-name{color:#90d0ff;}
-
-.ac-priority{
-  font-size:9px;font-weight:700;letter-spacing:1px;
-  text-transform:uppercase;padding:2px 8px;
-  border-radius:2px;white-space:nowrap;flex-shrink:0;
-}
+.ac-title{flex:1;min-width:0;}
+.ac-name{font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--text);display:block;}
+.p-critical .ac-name{color:#ff9d9d;}
+.p-high .ac-name{color:#ffd090;}
+.p-medium .ac-name{color:#90d0ff;}
+.ac-plats{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;}
+.plat{font-size:9px;letter-spacing:.5px;color:var(--muted);border:1px solid var(--border);border-radius:2px;padding:0 5px;text-transform:uppercase;}
+.ac-priority{font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:2px 8px;border-radius:2px;white-space:nowrap;flex-shrink:0;}
 .p-critical .ac-priority{background:var(--red-dim);color:var(--red);border:1px solid var(--red);}
 .p-high .ac-priority{background:var(--amber-dim);color:var(--amber);border:1px solid var(--amber);}
 .p-medium .ac-priority{background:var(--cyan-dim);color:var(--cyan);border:1px solid var(--cyan);}
-
-.ac-chevron{
-  font-size:10px;color:var(--muted);
-  transition:transform 0.2s;flex-shrink:0;
-}
+.ac-chevron{font-size:10px;color:var(--muted);transition:transform 0.2s;flex-shrink:0;}
 .artifact-card.expanded .ac-chevron{transform:rotate(90deg);}
+@media(max-width:560px){.ac-priority{display:none;}}
 
-/* Expanded body */
-.ac-body{
-  display:none;
-  padding:0 16px 16px 48px;
-  border-top:1px solid var(--border);
-}
+.ac-body{display:none;padding:0 16px 16px 46px;border-top:1px solid var(--border);}
 .artifact-card.expanded .ac-body{display:block;}
+@media(max-width:560px){.ac-body{padding-left:16px;}}
+.ac-why{font-size:12px;color:var(--text);line-height:1.7;margin:14px 0 12px;padding-left:12px;border-left:2px solid var(--cyan);}
+.ac-meta{display:grid;grid-template-columns:1.2fr 1fr;gap:8px;margin-top:12px;}
+@media(max-width:700px){.ac-meta{grid-template-columns:1fr;}}
+.meta-block{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;min-width:0;}
+.meta-label{font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;}
+.meta-val{font-size:11px;color:var(--text);line-height:1.6;}
+.meta-val code{color:var(--green);font-size:11px;display:block;margin-top:3px;overflow-wrap:anywhere;}
+.ac-foot{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
+.ac-tools{flex:1;min-width:240px;display:flex;align-items:flex-start;gap:8px;background:rgba(0,212,255,0.05);border:1px solid rgba(0,212,255,0.15);border-radius:var(--r);padding:8px 12px;font-size:11px;color:var(--muted);line-height:1.6;}
+.ac-tools strong{color:var(--cyan);}
+.dotc{width:6px;height:6px;border-radius:50%;background:var(--cyan);box-shadow:0 0 6px var(--cyan);flex-shrink:0;margin-top:6px;}
+.ac-tip{width:100%;font-size:11px;color:#ffd38a;background:var(--amber-dim);border:1px solid rgba(255,170,0,.25);border-radius:var(--r);padding:8px 12px;line-height:1.6;}
+.ac-tip strong{color:var(--amber);}
+.mitre{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+.mitre a{font-size:10px;color:var(--violet);background:var(--violet-dim);border:1px solid rgba(180,140,255,.3);border-radius:2px;padding:2px 7px;text-decoration:none;white-space:nowrap;}
+.mitre a:hover{border-color:var(--violet);}
+.no-results{padding:28px;text-align:center;color:var(--muted);border:1px dashed var(--border);border-radius:var(--r);}
 
-.ac-why{
-  font-size:12px;color:var(--text);
-  line-height:1.7;margin:14px 0 12px;
-  padding-left:12px;
-  border-left:2px solid var(--cyan);
-}
-
-.ac-meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;}
-@media(max-width:560px){.ac-meta{grid-template-columns:1fr;}}
-
-.meta-block{
-  background:var(--bg3);
-  border:1px solid var(--border);
-  border-radius:var(--r);
-  padding:10px 12px;
-}
-.meta-label{
-  font-size:9px;font-weight:700;letter-spacing:1px;
-  text-transform:uppercase;color:var(--muted);
-  margin-bottom:5px;
-}
-.meta-val{
-  font-size:11px;color:var(--text);
-  line-height:1.6;word-break:break-all;
-}
-.meta-val code{
-  color:var(--green);font-size:11px;
-  display:block;margin-top:2px;
-}
-
-.ac-axiom{
-  display:flex;align-items:center;gap:8px;
-  margin-top:12px;
-  background:rgba(0,212,255,0.05);
-  border:1px solid rgba(0,212,255,0.15);
-  border-radius:var(--r);
-  padding:8px 12px;
-  font-size:11px;color:var(--muted);
-}
-.ac-axiom strong{color:var(--cyan);}
-.axiom-dot{width:6px;height:6px;border-radius:50%;background:var(--cyan);box-shadow:0 0 6px var(--cyan);flex-shrink:0;}
-
-/* ═══════════════════════════════════════
-   PROGRESS / CHECKLIST FOOTER
-═══════════════════════════════════════ */
-.checklist-footer{
-  position:sticky;bottom:0;z-index:10;
-  background:rgba(8,12,16,0.92);
-  backdrop-filter:blur(12px);
-  border-top:1px solid var(--border);
-  padding:12px 0;
-  margin:0 -16px;
-  padding:12px 16px;
-}
-.cf-inner{
-  max-width:1160px;margin:0 auto;
-  display:flex;align-items:center;gap:16px;flex-wrap:wrap;
-}
+/* ── Sticky footer ── */
+.checklist-footer{position:sticky;bottom:0;z-index:10;background:rgba(8,12,16,0.94);backdrop-filter:blur(12px);border-top:1px solid var(--border);padding:12px 16px;}
+.cf-inner{max-width:1160px;margin:0 auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
 .cf-progress{flex:1;min-width:200px;}
-.cf-label{
-  display:flex;justify-content:space-between;
-  font-size:11px;color:var(--muted);margin-bottom:5px;
-}
+.cf-label{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:5px;}
 .cf-label span{color:var(--green);}
-.cf-track{
-  height:3px;background:var(--border);
-  border-radius:2px;overflow:hidden;
-}
-.cf-fill{
-  height:100%;background:linear-gradient(90deg,var(--cyan),var(--green));
-  border-radius:2px;transition:width 0.4s ease;
-}
-.cf-reset{
-  background:transparent;
-  border:1px solid var(--border2);
-  border-radius:var(--r);
-  padding:7px 16px;
-  color:var(--muted);font-family:'JetBrains Mono',monospace;
-  font-size:11px;cursor:pointer;transition:all 0.15s;
-  white-space:nowrap;
-}
-.cf-reset:hover{border-color:var(--muted);color:var(--text);}
-.cf-export{
-  background:var(--cyan);
-  border:none;border-radius:var(--r);
-  padding:7px 16px;
-  color:#000;font-family:'JetBrains Mono',monospace;
-  font-size:11px;font-weight:700;cursor:pointer;
-  transition:all 0.15s;white-space:nowrap;
-}
+.cf-track{height:3px;background:var(--border);border-radius:2px;overflow:hidden;}
+.cf-fill{height:100%;background:linear-gradient(90deg,var(--cyan),var(--green));border-radius:2px;transition:width 0.4s ease;}
+.cf-btn{background:transparent;border:1px solid var(--border2);border-radius:var(--r);padding:7px 12px;color:var(--muted);font-size:11px;cursor:pointer;transition:all 0.15s;white-space:nowrap;}
+.cf-btn:hover{border-color:var(--muted);color:var(--text);}
+.cf-export{background:var(--cyan);border:none;border-radius:var(--r);padding:7px 14px;color:#000;font-size:11px;font-weight:700;cursor:pointer;transition:all 0.15s;white-space:nowrap;}
 .cf-export:hover{background:#33ddff;transform:translateY(-1px);}
 
-/* ═══════════════════════════════════════
-   EMPTY STATE
-═══════════════════════════════════════ */
-.empty-state{
-  display:flex;flex-direction:column;align-items:center;
-  justify-content:center;
-  padding:60px 20px;
-  text-align:center;
-  border:1px dashed var(--border);
-  border-radius:var(--r);
-}
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:56px 20px;margin-top:36px;text-align:center;border:1px dashed var(--border);border-radius:var(--r);}
 .empty-state .es-icon{font-size:40px;margin-bottom:16px;opacity:0.4;}
 .empty-state p{font-size:12px;color:var(--muted);line-height:1.7;}
 
-/* ═══════════════════════════════════════
-   ANIMATIONS
-═══════════════════════════════════════ */
-@keyframes fadeUp{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:translateY(0);}}
-@keyframes scanIn{from{opacity:0;transform:translateX(-6px);}to{opacity:1;transform:translateX(0);}}
-.fade-up{animation:fadeUp 0.35s ease both;}
-.fade-up-d1{animation-delay:0.05s;}
-.fade-up-d2{animation-delay:0.10s;}
-.fade-up-d3{animation-delay:0.15s;}
-.fade-up-d4{animation-delay:0.20s;}
-.fade-up-d5{animation-delay:0.25s;}
+/* ── CTA ── */
+.cta{
+  margin-top:48px;position:relative;overflow:hidden;
+  background:linear-gradient(135deg,rgba(0,212,255,.10),rgba(0,255,136,.05));
+  border:1px solid rgba(0,212,255,.3);border-radius:10px;padding:28px 30px;
+  display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;
+}
+.cta-k{font-size:10px;font-weight:700;letter-spacing:2px;color:var(--green);text-transform:uppercase;margin-bottom:8px;}
+.cta h2{font-family:'Syne',sans-serif;font-size:clamp(20px,3vw,26px);color:#fff;line-height:1.2;margin-bottom:8px;}
+.cta p{color:var(--muted);font-size:12px;line-height:1.7;max-width:620px;}
+.cta-btn{background:var(--cyan);color:#000;text-decoration:none;font-weight:700;font-size:13px;padding:12px 22px;border-radius:var(--r);white-space:nowrap;transition:all .15s;box-shadow:0 0 24px var(--cyan-glow);}
+.cta-btn:hover{background:#33ddff;transform:translateY(-1px);}
 
-/* ── Blinking cursor ── */
+.site-footer{margin-top:28px;padding-top:18px;border-top:1px solid var(--border);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:11px;color:var(--dim);line-height:1.7;}
+.site-footer a{color:var(--muted);text-decoration:none;}
+.site-footer a:hover{color:var(--cyan);}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:translateY(0);}}
+.fade-up{animation:fadeUp 0.35s ease both;}
 @keyframes blink{0%,100%{opacity:1;}50%{opacity:0;}}
 .cursor{display:inline-block;width:8px;height:14px;background:var(--cyan);vertical-align:middle;animation:blink 1s step-end infinite;margin-left:3px;}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important;}}
 
-/* Mobile */
 @media(max-width:640px){
   .stats-bar{flex-wrap:wrap;}
-  .stat-cell{flex:1 1 calc(50% - 1px);}
+  .stat-cell{flex:1 1 calc(50% - 1px);border-bottom:1px solid var(--border);}
   .scenario-grid{grid-template-columns:1fr 1fr;}
-  .hero h1{font-size:26px;}
+  .tb-badge{display:none;}
+  .cf-inner{gap:6px;}
+  .cf-progress{flex-basis:100%;}
+  .bl{display:none;}
+  .cf-btn{padding:7px 11px;font-size:13px;}
+  .cf-export{flex:1;}
 }
-@media(max-width:380px){
-  .scenario-grid{grid-template-columns:1fr;}
+@media(max-width:400px){.scenario-grid{grid-template-columns:1fr;}}
+
+@media print{
+  body{background:#fff;color:#000;font-size:11px;}
+  body::before,body::after,.top-bar,.hero,#step1,#step2,.toolbar,.checklist-footer,.cta,.empty-state{display:none!important;}
+  #resultsPanel{display:block!important;padding:0;}
+  .artifact-card,.meta-block,.scene-box,.stats-bar,.ac-tools,.ac-tip{background:#fff!important;border-color:#bbb!important;color:#000!important;}
+  .ac-body{display:block!important;}
+  .ac-name,.scene-title,.meta-val,.ac-why,.meta-val code,.stat-num,.ac-tools strong{color:#000!important;}
+  .artifact-card{break-inside:avoid;}
+  .ac-chevron{display:none;}
 }
 </style>
 </head>
@@ -473,988 +289,851 @@ body::before{
 
 <div class="shell">
 
-  <!-- TOP BAR -->
-  <div class="top-bar">
-    <div class="tb-dot r"></div>
-    <div class="tb-dot" style="background:#ffaa00;box-shadow:0 0 8px #ffaa00;"></div>
-    <div class="tb-dot g"></div>
-    <div class="tb-path">magnet-forensics / <span>investigation-builder</span> / scenario.js</div>
-    <div class="tb-badge">AXIOM Ready</div>
-  </div>
+  <header class="top-bar">
+    <div class="tb-dot" style="background:var(--red);box-shadow:0 0 8px var(--red);"></div>
+    <div class="tb-dot" style="background:var(--amber);box-shadow:0 0 8px var(--amber);"></div>
+    <div class="tb-dot" style="background:var(--green);box-shadow:0 0 8px var(--green);"></div>
+    <div class="tb-path">dfir-toolkit / <span>investigation-builder</span> / scenario.js</div>
+    <div class="tb-badge">Vendor-Neutral · 2026</div>
+  </header>
 
-  <!-- HERO -->
-  <div class="hero">
-    <div class="hero-tag">Magnet Forensics · Triage Tool</div>
-    <h1>Investigation<br><em>Scenario Builder</em><span class="cursor"></span></h1>
-    <p class="hero-sub">Select a case type to generate a prioritized artifact collection checklist. Each artifact includes forensic significance, registry paths, and AXIOM coverage notes.</p>
-  </div>
+  <section class="hero">
+    <div>
+      <div class="hero-tag">Digital Forensics &amp; Incident Response · Triage Planner</div>
+      <h1>Investigation<br><em>Scenario Builder</em><span class="cursor"></span></h1>
+      <p class="hero-sub">Pick a case type and the platforms in scope. Get a prioritized artifact collection checklist with file and registry paths, what each artifact proves, MITRE ATT&amp;CK mapping and free or open-source tools to parse it. It works with any forensic suite.</p>
+    </div>
+    <div class="hero-facts" id="heroFacts"></div>
+  </section>
 
-  <!-- STEP 1: SCENARIO -->
-  <div class="section" id="step1">
-    <div class="sec-label"><span>01</span> · SELECT CASE TYPE</div>
+  <section class="section" id="step1">
+    <div class="sec-label"><span>01</span> · Select case type</div>
     <div class="scenario-grid" id="scenarioGrid"></div>
-  </div>
+  </section>
 
-  <!-- STEP 2: OS -->
-  <div class="section" id="step2" style="padding-top:0;">
-    <div class="sec-label"><span>02</span> · TARGET OS / PLATFORM</div>
+  <section class="section" id="step2">
+    <div class="sec-label"><span>02</span> · Platforms in scope <span class="os-hint" style="letter-spacing:0;text-transform:none;font-weight:400;">select one or more</span></div>
     <div class="os-row" id="osRow"></div>
-  </div>
+  </section>
 
-  <!-- RESULTS -->
-  <div id="resultsPanel">
-    <div class="sec-label" style="padding-top:8px;"><span>03</span> · ARTIFACT CHECKLIST <span id="caseLabel" style="color:var(--text);margin-left:6px;"></span></div>
+  <section id="resultsPanel" aria-live="polite">
+    <div class="sec-label"><span>03</span> · Artifact checklist <span id="caseLabel" style="color:var(--text);margin-left:6px;"></span></div>
 
-    <!-- Stats -->
+    <div class="case-row">
+      <div class="case-field"><label for="caseId">Case / matter ID (optional, used in export)</label><input id="caseId" placeholder="e.g. 2026-IR-0142" autocomplete="off"></div>
+      <div class="case-field"><label for="examiner">Examiner (optional)</label><input id="examiner" placeholder="e.g. J. Analyst" autocomplete="off"></div>
+    </div>
+
     <div class="stats-bar" id="statsBar"></div>
-
-    <!-- Scene -->
     <div class="scene-box" id="sceneBox"></div>
 
-    <!-- Artifact List -->
+    <div class="toolbar">
+      <input class="search" id="search" type="search" placeholder="Filter artifacts: e.g. SRUM, 4624, rclone, T1567…" aria-label="Filter artifacts">
+      <button class="tool-btn" id="expandAll" type="button">⊞ Expand all</button>
+      <button class="tool-btn" id="hideDone" type="button" aria-pressed="false">◌ Hide collected</button>
+    </div>
+
     <div id="artifactList"></div>
+  </section>
 
-    <div style="height:60px;"></div>
-  </div>
-
-  <!-- Empty state -->
   <div class="empty-state" id="emptyState">
     <div class="es-icon">🔍</div>
     <p>Select a case type above to generate<br>your investigation artifact checklist.</p>
   </div>
 
-</div><!-- /shell -->
+  <aside class="cta" aria-label="Contact">
+    <div>
+      <div class="cta-k">// Custom tools for your business</div>
+      <h2>Want a tool like this for your business?</h2>
+      <p>I design and build interactive tools for B2B teams: triage planners, calculators, configurators and lead-gen tools that explain complex products and turn visitors into qualified leads. Reach out and let's build yours.</p>
+    </div>
+    <a class="cta-btn" href="https://zov911.com" target="_blank" rel="noopener">Reach out → zov911.com</a>
+  </aside>
 
-<!-- STICKY FOOTER -->
+  <footer class="site-footer">
+    <div>© <span id="yr">2026</span> zov911 · Designed &amp; built by <a href="https://zov911.com" target="_blank" rel="noopener">zov911</a> · <a href="https://github.com/zov911" target="_blank" rel="noopener">GitHub</a></div>
+    <div>Reference guide only. Validate artifacts against your tooling, OS build and jurisdiction's evidentiary rules. Content reviewed 2026.</div>
+  </footer>
+
+</div>
+
 <div class="checklist-footer" id="checklistFooter" style="display:none;">
   <div class="cf-inner">
     <div class="cf-progress">
-      <div class="cf-label">
-        Evidence Collection Progress
-        <span id="progressLabel">0 / 0 collected</span>
-      </div>
-      <div class="cf-track">
-        <div class="cf-fill" id="progressFill" style="width:0%"></div>
-      </div>
+      <div class="cf-label">Evidence collection progress <span id="progressLabel">0 / 0 collected</span></div>
+      <div class="cf-track"><div class="cf-fill" id="progressFill" style="width:0%"></div></div>
     </div>
-    <button class="cf-reset" onclick="resetChecks()">↺ Reset</button>
-    <button class="cf-export" onclick="exportChecklist()">↓ Export Checklist</button>
+    <button class="cf-btn" type="button" id="btnReset" title="Reset progress">↺<span class="bl"> Reset</span></button>
+    <button class="cf-btn" type="button" id="btnCopyLink" title="Copy shareable link">🔗<span class="bl"> Share link</span></button>
+    <button class="cf-btn" type="button" id="btnPrint" title="Print or save as PDF">⎙<span class="bl"> Print / PDF</span></button>
+    <button class="cf-btn" type="button" id="btnCsv" title="Download CSV">↓ CSV</button>
+    <button class="cf-export" type="button" id="btnMd">↓ Export Markdown</button>
   </div>
 </div>
 
 <script>
 /* ═══════════════════════════════════════════════════
-   DATA
+   PLATFORMS
 ═══════════════════════════════════════════════════ */
-
-const OS_OPTIONS = [
-  {id:'all',   label:'All Platforms', icon:'🌐'},
-  {id:'win10', label:'Windows 10/11',  icon:'🪟'},
-  {id:'win7',  label:'Windows 7/8',    icon:'🪟'},
-  {id:'winxp', label:'Windows XP',     icon:'🪟'},
-  {id:'mac',   label:'macOS',          icon:'🍎'},
+const PLATFORMS = [
+  {id:'win',    label:'Windows 10/11 & Server', short:'Windows', icon:'🪟'},
+  {id:'mac',    label:'macOS',                  short:'macOS',   icon:'🍎'},
+  {id:'linux',  label:'Linux / ESXi',           short:'Linux',   icon:'🐧'},
+  {id:'mobile', label:'iOS / Android',          short:'Mobile',  icon:'📱'},
+  {id:'cloud',  label:'Cloud & SaaS',           short:'Cloud',   icon:'☁️'},
 ];
 
+const MITRE_NAMES = {
+  'T1003.001':'OS Credential Dumping: LSASS Memory','T1005':'Data from Local System','T1021.001':'Remote Services: RDP',
+  'T1021.004':'Remote Services: SSH','T1041':'Exfiltration Over C2 Channel','T1048':'Exfiltration Over Alternative Protocol',
+  'T1052.001':'Exfiltration over USB','T1053.003':'Scheduled Task/Job: Cron','T1053.005':'Scheduled Task/Job: Scheduled Task',
+  'T1059.001':'Command and Scripting Interpreter: PowerShell','T1070.001':'Indicator Removal: Clear Windows Event Logs',
+  'T1070.004':'Indicator Removal: File Deletion','T1070.006':'Indicator Removal: Timestomp','T1078':'Valid Accounts',
+  'T1078.004':'Valid Accounts: Cloud Accounts','T1083':'File and Directory Discovery','T1098.004':'Account Manipulation: SSH Authorized Keys',
+  'T1110':'Brute Force','T1114.001':'Email Collection: Local Email Collection','T1114.002':'Email Collection: Remote Email Collection',
+  'T1114.003':'Email Collection: Email Forwarding Rule','T1133':'External Remote Services','T1135':'Network Share Discovery',
+  'T1136.001':'Create Account: Local Account','T1204.002':'User Execution: Malicious File','T1219':'Remote Access Software',
+  'T1486':'Data Encrypted for Impact','T1490':'Inhibit System Recovery','T1530':'Data from Cloud Storage',
+  'T1539':'Steal Web Session Cookie','T1543.001':'Create or Modify System Process: Launch Agent',
+  'T1543.002':'Create or Modify System Process: Systemd Service','T1543.003':'Create or Modify System Process: Windows Service',
+  'T1543.004':'Create or Modify System Process: Launch Daemon','T1546.003':'Event Triggered Execution: WMI Event Subscription',
+  'T1547.001':'Boot or Logon Autostart: Registry Run Keys / Startup Folder','T1557':'Adversary-in-the-Middle',
+  'T1560.001':'Archive Collected Data: Archive via Utility','T1562.001':'Impair Defenses: Disable or Modify Tools',
+  'T1566':'Phishing','T1567':'Exfiltration Over Web Service','T1567.002':'Exfiltration to Cloud Storage',
+  'T1574.006':'Hijack Execution Flow: Dynamic Linker Hijacking','T1621':'Multi-Factor Authentication Request Generation',
+};
+
+/* ═══════════════════════════════════════════════════
+   ARTIFACT LIBRARY  (defined once, referenced by scenarios)
+   n=name i=icon pf=platforms loc=locations cap=captures
+   tools=free / open-source parsers  mitre=ATT&CK ids  tip=analyst pitfall
+═══════════════════════════════════════════════════ */
+const A = {
+  usb:{n:'USB & Removable Media History',i:'🔌',pf:['win'],
+    loc:['SYSTEM\\CurrentControlSet\\Enum\\USBSTOR  +  Enum\\USB','SYSTEM\\MountedDevices','NTUSER.DAT\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\MountPoints2','C:\\Windows\\INF\\setupapi.dev.log','Microsoft-Windows-Partition%4Diagnostic.evtx (Event 1006)'],
+    cap:'Vendor/product, device serial, first install, last connect and last removal times, drive letter, volume GUID, and which user mounted it. Partition/Diagnostic 1006 also stores the volume serial, so you can tie LNK and jump list entries to a specific stick.',
+    tools:'Registry Explorer / RECmd, EvtxECmd, USB device timeline scripts in Velociraptor',mitre:['T1052.001'],
+    tip:'Windows 10/11 keeps last-arrival/removal times under the device Properties keys {83da6326…}\\0066 and 0067. Don\'t rely on the USBSTOR key LastWrite time alone.'},
+  lnk:{n:'LNK Shortcut Files',i:'🔗',pf:['win'],
+    loc:['%APPDATA%\\Microsoft\\Windows\\Recent\\*.lnk','%APPDATA%\\Microsoft\\Office\\Recent\\','Desktop / Start Menu shortcuts per profile'],
+    cap:'Target path (including E:\\ or \\\\server\\share paths), target created/modified/accessed times, size, volume serial and type, NetBIOS name, MAC address (machine droid).',
+    tools:'LECmd, KAPE (LNK module), Velociraptor Windows.Forensics.Lnk',mitre:['T1005'],
+    tip:'LNKs outlive their targets. A shortcut pointing to a removable volume serial that matches Partition/Diagnostic 1006 is strong evidence the file was opened from that device.'},
+  jumplists:{n:'Jump Lists',i:'📋',pf:['win'],
+    loc:['%APPDATA%\\Microsoft\\Windows\\Recent\\AutomaticDestinations\\*.automaticDestinations-ms','%APPDATA%\\Microsoft\\Windows\\Recent\\CustomDestinations\\*.customDestinations-ms'],
+    cap:'Per-application recent and pinned files with embedded LNK data, access order, timestamps and volume info. Survives "clear recent items" more often than people expect.',
+    tools:'JLECmd, KAPE',mitre:['T1005']},
+  shellbags:{n:'Shellbags (Folder Access)',i:'📁',pf:['win'],
+    loc:['UsrClass.dat\\Local Settings\\Software\\Microsoft\\Windows\\Shell\\BagMRU  +  \\Bags','NTUSER.DAT\\Software\\Microsoft\\Windows\\Shell\\BagMRU'],
+    cap:'Folder hierarchy the user browsed in Explorer, including network shares, removable media, ZIP contents and folders that no longer exist, with first/last interaction times.',
+    tools:'ShellBags Explorer / SBECmd',mitre:['T1083','T1135']},
+  prefetch:{n:'Prefetch (Program Execution)',i:'⚡',pf:['win'],
+    loc:['C:\\Windows\\Prefetch\\<EXE>-<HASH>.pf'],
+    cap:'Executable name and path, run count, up to 8 last-run timestamps, files and directories referenced in the first ~10 seconds of execution.',
+    tools:'PECmd, WinPrefetchView',mitre:['T1204.002'],
+    tip:'Prefetch is disabled by default on Windows Server and on some hardened or VDI images. If it\'s missing, pivot to Amcache, BAM and SRUM.'},
+  amcache:{n:'Amcache & ShimCache',i:'🧾',pf:['win'],
+    loc:['C:\\Windows\\AppCompat\\Programs\\Amcache.hve','SYSTEM\\CurrentControlSet\\Control\\Session Manager\\AppCompatCache'],
+    cap:'Executable path, SHA-1 hash (Amcache), file size, publisher, install/first-seen time; ShimCache ordering of binaries seen on disk.',
+    tools:'AmcacheParser, AppCompatCacheParser, Registry Explorer',mitre:['T1204.002'],
+    tip:'On Windows 10/11 a ShimCache entry shows the file existed, not that it ran. Pair it with Prefetch, BAM or Amcache before claiming execution.'},
+  bam:{n:'BAM / DAM (Last Execution per User)',i:'⏱️',pf:['win'],
+    loc:['SYSTEM\\CurrentControlSet\\Services\\bam\\State\\UserSettings\\{SID}'],
+    cap:'Full path and last execution time per user SID, including binaries run from removable or temp locations.',
+    tools:'Registry Explorer, RECmd (BAM batch)',mitre:['T1204.002'],
+    tip:'Entries are short-lived (roughly a week for removed programs). Collect early.'},
+  srum:{n:'SRUM (App Network & Resource Usage)',i:'📶',pf:['win'],
+    loc:['C:\\Windows\\System32\\sru\\SRUDB.dat','SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\SRUM\\Extensions'],
+    cap:'Hourly per-application bytes sent and received, per-user attribution, network interface and SSID, plus energy and app run time. Typically covers 30–60 days.',
+    tools:'SrumECmd, srum-dump',mitre:['T1041','T1567.002'],
+    tip:'SRUM is often the only artifact that puts a number on exfiltration, e.g. "rclone.exe sent 41 GB on Tuesday night".'},
+  logon:{n:'Event Logs: Logons & Remote Access',i:'📊',pf:['win'],
+    loc:['Security.evtx: 4624/4625 (logon type 2,3,7,10,11), 4634/4647, 4648, 4672, 4720, 4732, 4740, 4778/4779','TerminalServices-LocalSessionManager%4Operational.evtx: 21, 22, 24, 25','TerminalServices-RemoteConnectionManager%4Operational.evtx: 1149'],
+    cap:'Who logged on, how (interactive, network, RDP, cached), from which IP or workstation, privilege assignment, account creation and group changes.',
+    tools:'EvtxECmd, Hayabusa, Chainsaw (Sigma rules), Timeline Explorer',mitre:['T1078','T1021.001','T1110','T1136.001']},
+  persistlog:{n:'Event Logs: Services, Tasks & Log Clearing',i:'🧩',pf:['win'],
+    loc:['System.evtx: 7045 (service installed), 104 (log cleared)','Security.evtx: 4697 (service), 4698/4702 (task created/updated), 1102 (audit log cleared), 4688 (process creation, if enabled)','Microsoft-Windows-TaskScheduler%4Operational.evtx: 106, 140, 200, 201'],
+    cap:'Persistence created by attackers or insiders, exact command lines (when 4688 command-line auditing is on), and anti-forensic log clearing.',
+    tools:'Hayabusa, Chainsaw, EvtxECmd',mitre:['T1543.003','T1053.005','T1070.001']},
+  powershell:{n:'PowerShell Logging & History',i:'💠',pf:['win'],
+    loc:['Microsoft-Windows-PowerShell%4Operational.evtx: 4103, 4104 (script block)','Windows PowerShell.evtx: 400, 600','%APPDATA%\\Microsoft\\Windows\\PowerShell\\PSReadLine\\ConsoleHost_history.txt'],
+    cap:'Decoded script blocks (including obfuscated and Base64 payloads), engine start with host application, and typed interactive command history per user.',
+    tools:'EvtxECmd, Hayabusa, CyberChef (decode)',mitre:['T1059.001'],
+    tip:'Windows logs suspicious script blocks as 4104 Warning even without full logging enabled. Always check them.'},
+  autoruns:{n:'Persistence Locations (Run Keys, Tasks, WMI)',i:'🗝️',pf:['win'],
+    loc:['HKLM|HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run, RunOnce','HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon (Shell, Userinit)','HKLM\\SYSTEM\\CurrentControlSet\\Services','C:\\Windows\\System32\\Tasks\\  +  Startup folders','C:\\Windows\\System32\\wbem\\Repository\\OBJECTS.DATA (WMI subscriptions)'],
+    cap:'Launch commands for implants, backdoors and logic bombs: path, arguments, encoded commands, and LastWrite times that date the change.',
+    tools:'Sysinternals Autoruns (offline mode), RECmd batch files, Velociraptor, PyWMIPersistenceFinder',mitre:['T1547.001','T1053.005','T1546.003','T1543.003']},
+  defender:{n:'Antivirus / EDR Detections',i:'🛡️',pf:['win'],
+    loc:['Microsoft-Windows-Windows Defender%4Operational.evtx: 1116, 1117, 5001, 5007','C:\\ProgramData\\Microsoft\\Windows Defender\\Support\\MPLog-*.log','C:\\ProgramData\\Microsoft\\Windows Defender\\Quarantine\\','EDR console telemetry / exports (process trees, network events)'],
+    cap:'Detections with file path and threat name, remediation actions, real-time protection disabled, exclusions added, plus MPLog\'s record of files scanned (a bonus execution artifact).',
+    tools:'EvtxECmd, Hayabusa, defender quarantine extractors, your EDR\'s export API',mitre:['T1562.001']},
+  ransom:{n:'Recovery Tampering & Encryption Trail',i:'🧨',pf:['win','linux'],
+    loc:['4688 / Sysmon 1 command lines: vssadmin delete shadows, wmic shadowcopy delete, bcdedit /set recoveryenabled no, wbadmin delete catalog','Application.evtx: VSS and backup agent errors','Ransom notes, encrypted file extension, $UsnJrnl rename bursts','ESXi: /var/log/hostd.log, shell.log, vmkernel.log (VMs powered off before encryption)'],
+    cap:'When recovery was disabled, by which account and process, encryption start and end times, patient-zero host and the ransomware family (note + extension + binary).',
+    tools:'Hayabusa, Chainsaw, MFTECmd ($J), ID Ransomware / No More Ransom (family ID)',mitre:['T1490','T1486'],
+    tip:'Don\'t reboot encrypted hosts. Some families keep keys in memory, and a reboot can trigger the next encryption stage.'},
+  rmm:{n:'Remote Access / RMM Tool Logs',i:'🛰️',pf:['win','mac'],
+    loc:['AnyDesk: %PROGRAMDATA%\\AnyDesk\\ad_svc.trace, connection_trace.txt; %APPDATA%\\AnyDesk\\ad.trace','TeamViewer: Connections_incoming.txt, TeamViewer*_Logfile.log','ScreenConnect / Splashtop / Atera: install paths, service logs, Application.evtx','Recently installed services (7045) with RMM names'],
+    cap:'Inbound session IDs and IPs, session start/end, file transfers and the account used. Abused RMM tools are now a top initial-access and persistence method for ransomware crews.',
+    tools:'Text log review, Velociraptor RMM artifacts, Hayabusa',mitre:['T1219','T1133']},
+  exfil:{n:'Exfiltration & Archiving Tools',i:'📦',pf:['win','mac','linux'],
+    loc:['rclone: %APPDATA%\\rclone\\rclone.conf (~/.config/rclone/rclone.conf)','MEGAsync, WinSCP (registry/WinSCP.ini), FileZilla recentservers.xml / sitemanager.xml','7-Zip / WinRAR history: NTUSER.DAT\\Software\\7-Zip\\Compression\\ArcHistory, \\WinRAR\\ArcHistory','Staged archives in %TEMP%, C:\\PerfLogs, C:\\Users\\Public'],
+    cap:'Configured remote destinations (cloud bucket, MEGA, SFTP host), credentials or tokens, archive names and passwords used for staging, and command lines.',
+    tools:'RECmd, MFTECmd, Velociraptor hunts, SRUM (bytes sent)',mitre:['T1567.002','T1048','T1560.001']},
+  mft:{n:'NTFS File System ($MFT, $J, Recycle Bin)',i:'💾',pf:['win'],
+    loc:['$MFT, $LogFile, $Extend\\$UsnJrnl:$J, $I30 indexes','C:\\$Recycle.Bin\\{SID}\\$I* / $R*','Volume Shadow Copies (if they survived)'],
+    cap:'File create, rename, move and delete history, timestomping ($STANDARD_INFORMATION vs $FILE_NAME), deleted file names and paths, and who deleted what (Recycle Bin SID).',
+    tools:'MFTECmd, RBCmd, Velociraptor, The Sleuth Kit / Autopsy',mitre:['T1070.004','T1070.006']},
+  rdpcache:{n:'RDP Outbound History & Bitmap Cache',i:'🖼️',pf:['win'],
+    loc:['NTUSER.DAT\\Software\\Microsoft\\Terminal Server Client\\Servers  +  \\Default (MRU)','%LOCALAPPDATA%\\Microsoft\\Terminal Server Client\\Cache\\bcache*.bmc, Cache*.bin','%USERPROFILE%\\Documents\\Default.rdp'],
+    cap:'Hosts this machine RDP\'d into (lateral movement source), saved usernames, and image tiles of what the operator actually saw on the remote screen.',
+    tools:'bmc-tools, RdpCacheStitcher, Registry Explorer',mitre:['T1021.001']},
+  recall:{n:'Windows Recall Snapshots (Copilot+ PCs)',i:'🧠',pf:['win'],
+    loc:['%LOCALAPPDATA%\\CoreAIPlatform.00\\UKP\\{GUID}\\ukg.db  +  ImageStore\\'],
+    cap:'If the user enabled Recall: periodic screenshots plus OCR text of on-screen activity: documents, chats, web pages and apps used.',
+    tools:'Live, authenticated collection; SQLite browser for decrypted content',mitre:['T1005'],
+    tip:'An emerging artifact. Recall is opt-in, and the generally available build encrypts its data behind VBS enclaves and Windows Hello, so plan live acquisition with the user session unlocked and document legal authority.'},
+  sysinfo:{n:'System Info, Time Zone & Shutdown',i:'🕐',pf:['win'],
+    loc:['SYSTEM\\CurrentControlSet\\Control\\TimeZoneInformation','SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion (CurrentBuild, DisplayVersion, InstallDate)','SYSTEM\\CurrentControlSet\\Control\\Windows (ShutdownTime)','System.evtx: 6005/6006/6008, 1074'],
+    cap:'Time zone and DST bias for normalizing every timestamp, OS build and patch level, install date, last clean or dirty shutdown and who initiated it.',
+    tools:'Registry Explorer, RECmd, EvtxECmd',mitre:[],
+    tip:'Windows 11 still reports ProductName "Windows 10" in the registry. Use CurrentBuild ≥ 22000 to identify Windows 11.'},
+  accounts:{n:'User Accounts (SAM & Profiles)',i:'👥',pf:['win'],
+    loc:['SAM\\Domains\\Account\\Users','SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\ProfileList','Security.evtx: 4720, 4722, 4724, 4738'],
+    cap:'Local accounts, creation date, last logon, logon count, last password change, disabled state, profile paths and SIDs (including Entra ID / Microsoft accounts).',
+    tools:'Registry Explorer (SAM plugin), RECmd',mitre:['T1136.001','T1078']},
+  network:{n:'Network, Wi-Fi & Share History',i:'🌐',pf:['win','mac'],
+    loc:['SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\NetworkList\\Profiles  +  \\Signatures','C:\\ProgramData\\Microsoft\\Wlansvc\\Profiles\\Interfaces\\','NTUSER.DAT\\Network  +  \\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Map Network Drive MRU','macOS: /Library/Preferences/com.apple.wifi.known-networks.plist'],
+    cap:'SSIDs and networks joined with first/last connect times and gateway MAC (geolocatable), VPN profiles, mapped drives and UNC paths accessed.',
+    tools:'Registry Explorer, WLAN-AutoConfig event logs (8001/8003), plist viewers',mitre:['T1135']},
+  browser:{n:'Browser History, Downloads & Sessions',i:'🧭',pf:['win','mac','linux','mobile'],
+    loc:['Chromium (Chrome/Edge/Brave): %LOCALAPPDATA%\\<Vendor>\\<Browser>\\User Data\\<Profile>\\History, Web Data, Sessions\\, Cache','Firefox: %APPDATA%\\Mozilla\\Firefox\\Profiles\\*\\places.sqlite, formhistory.sqlite','Safari: ~/Library/Safari/History.db','Linux: ~/.config/google-chrome/, ~/.mozilla/firefox/'],
+    cap:'URLs, page titles and visit counts, search terms, downloads with source URL, form autofill, open tabs and sessions, and cloud-upload or webmail activity.',
+    tools:'Hindsight, DB Browser for SQLite, BrowsingHistoryView, KAPE browser modules',mitre:['T1567','T1204.002'],
+    tip:'Private/incognito windows leave little on disk. Look at memory, DNS cache, SRUM and router or proxy logs instead. Chrome on Windows now uses app-bound encryption for cookies and passwords, so decryption requires the live user context.'},
+  email:{n:'Email Clients & Local Mail Stores',i:'📧',pf:['win','mac','linux'],
+    loc:['Outlook (classic): %LOCALAPPDATA%\\Microsoft\\Outlook\\*.ost, Documents\\Outlook Files\\*.pst','Thunderbird: %APPDATA%\\Thunderbird\\Profiles\\*\\Mail, ImapMail (mbox)','Apple Mail: ~/Library/Mail/V*/','New Outlook / webmail: mostly server-side, so collect from the tenant'],
+    cap:'Message bodies and full headers (true origin, Received chain, SPF/DKIM/DMARC results), attachments, drafts, deleted items and recoverable items.',
+    tools:'libpff / pffexport, Thunderbird mbox readers, MailHeader analyzers, ExifTool for attachments',mitre:['T1114.001','T1566']},
+  m365:{n:'Microsoft 365 Unified Audit Log & Entra ID',i:'🏢',pf:['cloud'],
+    loc:['Purview Audit / Search-UnifiedAuditLog: MailItemsAccessed, Send, New-InboxRule, Set-InboxRule, UpdateInboxRules, FileDownloaded, FileSyncDownloadedFull, AnonymousLinkCreated, CopilotInteraction','Entra ID sign-in logs (interactive and non-interactive), audit logs, risky sign-ins','Mailbox audit + message trace'],
+    cap:'Every sign-in with IP, user agent, location and MFA result; mailbox access by session ID; malicious inbox and forwarding rules; SharePoint/OneDrive mass downloads and external sharing.',
+    tools:'Microsoft-Extractor-Suite (open source), Microsoft Graph PowerShell, Purview Audit search',mitre:['T1078.004','T1114.002','T1114.003','T1530'],
+    tip:'Audit Standard retains 180 days, while free-tier Entra sign-in logs keep only 7 days (30 with P1/P2). Export or preserve the logs on day one.'},
+  gws:{n:'Google Workspace Audit Logs',i:'🔷',pf:['cloud'],
+    loc:['Admin console → Reporting → Audit and investigation: Login, Drive, Gmail, Admin, OAuth Token, Rules','Gmail log search, Drive sharing and download events','Google Vault (preservation and export)'],
+    cap:'Login IPs and suspicious login flags, OAuth app grants, mail filter and forwarding changes, Drive downloads, external shares and ownership transfers.',
+    tools:'Admin SDK Reports API, GAM (open source), Google Vault',mitre:['T1078.004','T1114.003','T1530']},
+  cloudsync:{n:'Cloud Sync Clients (OneDrive, Drive, Dropbox)',i:'☁️',pf:['win','mac','cloud'],
+    loc:['OneDrive: %LOCALAPPDATA%\\Microsoft\\OneDrive\\logs\\, settings\\<Personal|Business1>\\','Google Drive for desktop: %LOCALAPPDATA%\\Google\\DriveFS\\<account>\\metadata_sqlite_db','Dropbox: %LOCALAPPDATA%\\Dropbox\\instance1\\','macOS: ~/Library/CloudStorage/, ~/Library/Application Support/Google/DriveFS/'],
+    cap:'Files synced to personal cloud accounts, local paths mapped to cloud IDs, sync timestamps, account email and files deleted locally but still in the cloud.',
+    tools:'OneDriveExplorer (open source), DB Browser for SQLite, KAPE cloud modules',mitre:['T1567.002','T1530']},
+  chat:{n:'Collaboration & Messaging Apps',i:'💬',pf:['win','mac','mobile','cloud'],
+    loc:['New Teams: %LOCALAPPDATA%\\Packages\\MSTeams_8wekyb3d8bbwe\\LocalCache\\Microsoft\\MSTeams\\EBWebView\\…\\IndexedDB\\ (LevelDB)','Slack: %APPDATA%\\Slack\\IndexedDB\\, \\storage\\','Signal Desktop: %APPDATA%\\Signal\\sql\\db.sqlite (SQLCipher)','WhatsApp / Telegram desktop app data folders','Server-side: Teams/Slack eDiscovery exports'],
+    cap:'Messages, edits and deletions, channel membership, shared files, call records and external contacts. Server-side exports are usually more complete than local caches.',
+    tools:'ccl_chromium_reader (LevelDB/IndexedDB), forensicsim (Teams), eDiscovery exports',mitre:['T1005','T1566'],
+    tip:'Teams and other chat apps are now a phishing and vishing channel ("IT helpdesk" calls in 2024–2026 ransomware playbooks). Check external tenant messages.'},
+  genai:{n:'Generative-AI Tool Usage',i:'🤖',pf:['win','mac','mobile','cloud'],
+    loc:['Browser history and page titles for chatgpt.com, claude.ai, gemini.google.com, copilot.microsoft.com, perplexity.ai','Desktop AI apps: %LOCALAPPDATA%\\Packages\\ (Store apps) or ~/Library/Application Support/<app>/','Microsoft 365: CopilotInteraction audit records','Enterprise AI admin or compliance exports, DLP / CASB logs'],
+    cap:'Which AI services were used and when, conversation titles (often visible in page titles), uploads of documents or source code, and enterprise prompt logs where retained.',
+    tools:'Hindsight, SQLite browser, Purview Audit, CASB/DLP console exports',mitre:['T1567'],
+    tip:'Pasting confidential data into public AI tools is now a common insider-risk and IP-leak vector. Correlate with clipboard, SRUM bytes sent and DLP alerts.'},
+  docmeta:{n:'Document Metadata & Version History',i:'📄',pf:['win','mac','linux','cloud'],
+    loc:['OOXML (.docx/.xlsx/.pptx): docProps/core.xml, app.xml','PDF: Info dictionary + XMP (Producer, CreatorTool)','Images: EXIF (camera, GPS, timestamps)','SharePoint / OneDrive / Google Docs version and revision history'],
+    cap:'Author, last modified by, revision count, total editing time, created/modified times, the generating software, and full version history showing who changed what.',
+    tools:'ExifTool, oletools (macros), cloud version history exports',mitre:[],
+    tip:'A "2019 invoice" produced by a PDF library released in 2025 is a red flag. Always check Producer/CreatorTool against release dates.'},
+  memory:{n:'Volatile Memory (RAM)',i:'🧬',pf:['win','mac','linux'],
+    loc:['Live RAM capture before shutdown','C:\\hiberfil.sys, pagefile.sys, swapfile.sys','Linux: /proc via AVML or LiME; macOS: live response tooling'],
+    cap:'Running and injected processes, network connections, command lines, credentials and tokens, encryption keys (BitLocker, ransomware), chat and private-browsing remnants.',
+    tools:'WinPmem, AVML, Volatility 3, MemProcFS',mitre:['T1003.001'],
+    tip:'Capture memory before you pull the plug. Once a BitLocker- or FileVault-protected system powers off, its keys and live evidence are gone.'},
+  macul:{n:'macOS Unified Logs',i:'📜',pf:['mac'],
+    loc:['/private/var/db/diagnostics/*.tracev3','/private/var/db/uuidtext/','Collect with: sudo log collect --output case.logarchive'],
+    cap:'Logins and unlocks, sudo use, process launches, Bluetooth and USB connections, TCC prompts, network changes and app-specific subsystems.',
+    tools:'log show / log collect, macos-UnifiedLogs (open source), mac_apt',mitre:['T1078'],
+    tip:'Retention is short, often days to a few weeks depending on log volume. Collect it first.'},
+  fsevents:{n:'macOS FSEvents',i:'🗂️',pf:['mac'],
+    loc:['/.fseventsd/ on each volume (including external drives)'],
+    cap:'File and folder create, rename, modify and delete events, including copies to external volumes and deleted files.',
+    tools:'FSEventsParser, mac_apt',mitre:['T1052.001','T1070.004']},
+  macact:{n:'macOS Activity (KnowledgeC & Biome)',i:'📈',pf:['mac'],
+    loc:['~/Library/Application Support/Knowledge/knowledgeC.db (legacy)','~/Library/Biome/streams/ (macOS 13+)','/private/var/db/biome/'],
+    cap:'App in focus, screen lock/unlock, device plugged in, Now Playing, Safari history and pattern of life with second-level timestamps.',
+    tools:'mac_apt, APOLLO, ccl_segb (Biome)',mitre:[]},
+  macquar:{n:'macOS Downloads & Quarantine',i:'⬇️',pf:['mac'],
+    loc:['~/Library/Preferences/com.apple.LaunchServices.QuarantineEventsV2','com.apple.quarantine extended attribute on files','XProtect / Gatekeeper entries in unified logs'],
+    cap:'Download URL, originating app (browser, Mail, AirDrop), timestamp and Gatekeeper decisions for files the user opened.',
+    tools:'SQLite browser, xattr, mac_apt',mitre:['T1204.002']},
+  macpersist:{n:'macOS Persistence & Privacy Permissions',i:'🔐',pf:['mac'],
+    loc:['~/Library/LaunchAgents, /Library/LaunchAgents, /Library/LaunchDaemons','/private/var/db/com.apple.backgroundtaskmanagement/BackgroundItems-v*.btm (sfltool dumpbtm)','~/Library/Application Support/com.apple.TCC/TCC.db  +  /Library/Application Support/com.apple.TCC/TCC.db'],
+    cap:'Login items, agents and daemons with their programs; which apps were granted Full Disk Access, Screen Recording, Accessibility or camera/mic permissions, and when.',
+    tools:'KnockKnock, mac_apt, SQLite browser',mitre:['T1543.001','T1543.004']},
+  linuxauth:{n:'Linux / ESXi Authentication Logs',i:'🐧',pf:['linux'],
+    loc:['/var/log/auth.log (Debian/Ubuntu), /var/log/secure (RHEL)','journald: /var/log/journal/ (journalctl)','/var/log/wtmp, btmp, lastlog; ~/.ssh/authorized_keys, known_hosts','ESXi: /var/log/auth.log, hostd.log, shell.log'],
+    cap:'SSH logins (key or password, source IP), sudo commands, failed logins and brute force, new authorized keys, and ESXi shell and SSH enablement before an attack.',
+    tools:'journalctl, last/lastb, Chainsaw / Hayabusa (Linux support), Velociraptor',mitre:['T1021.004','T1098.004','T1110','T1078'],
+    tip:'Debian 12+ and some minimal images no longer install rsyslog, so auth.log may not exist and journald is the source of truth.'},
+  linuxpersist:{n:'Linux Shell History & Persistence',i:'⌨️',pf:['linux'],
+    loc:['~/.bash_history, ~/.zsh_history, /root/.bash_history','/etc/crontab, /etc/cron.*, /var/spool/cron/','/etc/systemd/system/, ~/.config/systemd/user/','/etc/ld.so.preload, /etc/rc.local, /etc/passwd changes'],
+    cap:'Commands attackers or admins typed, cron jobs and systemd units used for persistence or sabotage, LD_PRELOAD rootkits and new accounts.',
+    tools:'UAC (Unix-like Artifacts Collector), Velociraptor, find -newer timelines',mitre:['T1053.003','T1543.002','T1574.006']},
+  mobcomms:{n:'Mobile Messages & Call Logs',i:'📲',pf:['mobile'],
+    loc:['iOS: /private/var/mobile/Library/SMS/sms.db, CallHistoryDB/CallHistory.storedata, WhatsApp ChatStorage.sqlite','Android: Google Messages bugle_db, calllog.db, WhatsApp msgstore.db (+ crypt15 backups)','Third-party apps: Signal, Telegram, Snapchat (full file system extraction)'],
+    cap:'SMS/iMessage/RCS content, attachments, call history, deleted message remnants (SQLite freelists and WAL), and contact identifiers.',
+    tools:'iLEAPP / ALEAPP (open source), plus your mobile extraction platform',mitre:['T1005'],
+    tip:'Most third-party chat data requires a full file system extraction. A logical or iTunes-style backup may miss it entirely.'},
+  mobloc:{n:'Mobile Location History',i:'📍',pf:['mobile','cloud'],
+    loc:['iOS: Significant Locations (com.apple.routined Cache.sqlite / Local.sqlite), Photos.sqlite GPS, Find My caches','Android: Google Maps Timeline (now stored on-device), Wi-Fi and cell caches, photo EXIF','Carrier records and cloud accounts via legal process'],
+    cap:'Visited places with arrival/departure times, routes, photo locations and last known positions.',
+    tools:'iLEAPP / ALEAPP, APOLLO',mitre:[],
+    tip:'Google moved Timeline to on-device storage in 2024–2025 and retired the web version, so the phone itself is now the primary source. Older guides that point to Google account requests are outdated.'},
+  mobusage:{n:'Mobile Usage & Pattern of Life',i:'📊',pf:['mobile'],
+    loc:['iOS: Biome / KnowledgeC, Screen Time, CurrentPowerlog.PLSQL, device unlock events','Android: Digital Wellbeing app_usage db, /data/system/usagestats/, batterystats'],
+    cap:'App usage by minute, screen on/off and unlock times, charging, motion state and the last active moment on the device.',
+    tools:'iLEAPP / ALEAPP, APOLLO',mitre:[]},
+  mobbackup:{n:'Device Backups & Cloud Accounts',i:'🗄️',pf:['mobile','win','mac','cloud'],
+    loc:['iOS backups: %APPDATA%\\Apple Computer\\MobileSync\\Backup\\ or %USERPROFILE%\\Apple\\MobileSync\\Backup\\; ~/Library/Application Support/MobileSync/Backup/','Google Takeout / Apple data and privacy exports (with consent)','iCloud / Google account data via legal process'],
+    cap:'Historical messages, photos, contacts and app data, sometimes covering a device that is missing, wiped or locked.',
+    tools:'iLEAPP (backup mode), iBackupBot, Takeout parsers',mitre:[],
+    tip:'iCloud Advanced Data Protection end-to-end encrypts most categories, so a provider return may not include message or photo content.'},
+};
+
+/* ═══════════════════════════════════════════════════
+   SCENARIOS  (priority + scenario-specific "why")
+═══════════════════════════════════════════════════ */
 const SCENARIOS = [
-  {
-    id:'ip_theft',
-    emoji:'💼',
-    name:'IP Theft',
-    desc:'Intellectual property stolen or exfiltrated by employee or contractor',
-    scene:{
-      icon:'🕵️',
-      title:'Scenario Context',
-      text:'An employee is suspected of stealing trade secrets, source code, or confidential documents before resignation or termination. Investigation must establish what was accessed, copied, and where it went.',
-    },
-    artifacts:[
-      {
-        id:'usb_hist',
-        priority:'critical',
-        icon:'🔌',
-        name:'USB Device History',
-        why:'The most direct evidence of data exfiltration. USB device history reveals every external drive connected — with timestamps. In IP theft cases, a USB plugged in during after-hours access is often the smoking gun.',
-        location:'SYSTEM\\CurrentControlSet\\Enum\\USBSTOR',
-        what:'Vendor/brand, device serial number, first and last connection timestamps, mapped drive letter',
-        os:['win10','win7','winxp'],
-        axiom:'AXIOM automatically parses USBSTOR, MountedDevices, and MountPoints2 into a unified USB timeline with user attribution.',
-      },
-      {
-        id:'lnk_files',
-        priority:'critical',
-        icon:'🔗',
-        name:'LNK Files',
-        why:'LNK shortcut files persist even after the original document is deleted or moved to USB. They reveal exactly which files were opened, when, and from which path — including paths pointing to removable drives (e.g., E:\\Documents\\).',
-        location:'%APPDATA%\\Microsoft\\Windows\\Recent\\',
-        what:'Original file path, MAC times of linked file, volume serial number, NetBIOS name, file size',
-        os:['win10','win7','winxp'],
-        axiom:'AXIOM recovers LNK files from allocated and unallocated space, surfacing files that were on USB drives even after the drive is removed.',
-      },
-      {
-        id:'shellbags',
-        priority:'critical',
-        icon:'📁',
-        name:'Shellbags',
-        why:'Shellbags record every folder a user browsed in Windows Explorer — including folders on USB drives and network shares that no longer exist. Critical for proving a suspect accessed a specific project folder.',
-        location:'NTUSER.dat\\Software\\Microsoft\\Windows\\Shell\\BagMRU (XP) / UsrClass.dat (Win7+)',
-        what:'Full folder hierarchy browsed, timestamps, network/USB share access, folder existence even after deletion',
-        os:['win10','win7','winxp'],
-        axiom:'AXIOM decodes BagMRU/Bags registry structures and presents folder history in a readable tree with timestamps.',
-      },
-      {
-        id:'jump_lists',
-        priority:'high',
-        icon:'📋',
-        name:'Jump Lists',
-        why:'Jump lists record recently accessed files per application — Word, Excel, Acrobat. In IP theft cases, they corroborate which specific documents were opened and provide timestamps independent of file system MAC times.',
-        location:'%APPDATA%\\Microsoft\\Windows\\Recent\\AutomaticDestinations\\',
-        what:'Application ID, recent file paths, timestamps, file access order',
-        os:['win10','win7'],
-        axiom:'AXIOM parses AutomaticDestinations and CustomDestinations files, linking AppIDs to application names automatically.',
-      },
-      {
-        id:'prefetch',
-        priority:'high',
-        icon:'⚡',
-        name:'Prefetch Files',
-        why:'Prefetch files prove program execution even if the executable was deleted. If a suspect ran a file-copying tool (e.g., robocopy.exe, teracopy.exe) or archiving tool (7zip, winrar), prefetch is the evidence.',
-        location:'ROOT\\Windows\\Prefetch\\[APPNAME]-[HASH].pf',
-        what:'Application name, execution count, first/last run timestamps, up to 8 timestamps (Win8+)',
-        os:['win10','win7','winxp'],
-        axiom:'AXIOM extracts prefetch files and flags known data exfiltration tools automatically in its artifact viewer.',
-      },
-      {
-        id:'email',
-        priority:'high',
-        icon:'📧',
-        name:'Email (Outlook / Webmail)',
-        why:'Email provides direct evidence of IP being sent externally. Look for attachments sent to personal accounts, competitors, or unknown recipients. Also check for recipients of document shares via cloud links.',
-        location:'PST/OST: %LOCALAPPDATA%\\Microsoft\\Outlook\\',
-        what:'Sent items, attachments, recipients, timestamps, draft emails, deleted items recovery',
-        os:['all'],
-        axiom:'AXIOM parses PST/OST archives and recovers deleted emails. Webmail artifacts (Gmail, Outlook.com) are also recovered from browser artifacts.',
-      },
-      {
-        id:'documents',
-        priority:'high',
-        icon:'📄',
-        name:'Document Metadata',
-        why:'Document metadata reveals original author, last editor, revision history, and creation timestamps — independent of file system timestamps. Critical for proving a document was modified or copied by the suspect.',
-        location:'Embedded in .docx, .xlsx, .pdf file properties',
-        what:'Author, last saved by, revision count, total editing time, created/modified timestamps',
-        os:['all'],
-        axiom:'AXIOM extracts embedded document metadata from Office files and PDFs found across the drive and unallocated space.',
-      },
-      {
-        id:'event_logs',
-        priority:'medium',
-        icon:'📊',
-        name:'Event Logs (Logon/Logoff)',
-        why:'Event logs provide a definitive timeline of when the suspect was logged in. Correlate logon events with USB connections and file access to build a coherent narrative of after-hours activity.',
-        location:'ROOT\\Windows\\System32\\winevt\\Logs\\Security.evtx',
-        what:'Event ID 4624 (logon), 4634 (logoff), 4768 (Kerberos), logon type, source IP',
-        os:['win10','win7'],
-        axiom:'AXIOM parses Windows Event Logs and presents logon/logoff sessions in a timeline view.',
-      },
-    ],
-  },
-
-  {
-    id:'fraud',
-    emoji:'💰',
-    name:'Fraud',
-    desc:'Financial fraud, falsified records, or document manipulation investigation',
-    scene:{
-      icon:'🔎',
-      title:'Scenario Context',
-      text:'A subject is suspected of manipulating financial records, falsifying invoices, creating fraudulent documents, or conducting unauthorized transactions. Investigation focuses on document authenticity and communication chains.',
-    },
-    artifacts:[
-      {
-        id:'documents',
-        priority:'critical',
-        icon:'📄',
-        name:'Document Metadata',
-        why:'In fraud cases, document metadata is often the most powerful evidence. The metadata will reveal if a "historical" document was created recently, edited by the wrong person, or shows impossible revision timelines that contradict the subject\'s claims.',
-        location:'Embedded in .docx, .xlsx, .pdf — accessible via file properties',
-        what:'Author field, last saved by, revision number, total editing time, creation vs. modification timestamps',
-        os:['all'],
-        axiom:'AXIOM extracts metadata from Office documents, PDFs, and image files found in allocated and unallocated space.',
-      },
-      {
-        id:'email',
-        priority:'critical',
-        icon:'📧',
-        name:'Email (Outlook / MBOX / Webmail)',
-        why:'Email is the primary communication record in fraud investigations. Fraudulent instructions, wire transfer approvals, and invoice submissions leave permanent records. Recover deleted threads — they often contain the most damning evidence.',
-        location:'PST: %LOCALAPPDATA%\\Microsoft\\Outlook\\ / Thunderbird MBOX: %APPDATA%\\Thunderbird\\Profiles\\',
-        what:'Full email content, headers (showing true sender), attachments, deleted item recovery, BCC recipients',
-        os:['all'],
-        axiom:'AXIOM recovers Outlook PST/OST data including deleted messages and recovers webmail sessions from browser artifacts.',
-      },
-      {
-        id:'lnk_files',
-        priority:'critical',
-        icon:'🔗',
-        name:'LNK Files',
-        why:'LNK files prove which financial documents were opened and when. Even if a suspect claims they "never opened" a particular spreadsheet, LNK files containing the file path and timestamp provide irrefutable evidence.',
-        location:'%APPDATA%\\Microsoft\\Windows\\Recent\\',
-        what:'File path, access timestamps for linked document, drive volume information',
-        os:['win10','win7','winxp'],
-        axiom:'AXIOM recovers LNK files including those pointing to network shares and removable media where documents were stored.',
-      },
-      {
-        id:'prefetch',
-        priority:'high',
-        icon:'⚡',
-        name:'Prefetch Files',
-        why:'Prefetch proves execution of spreadsheet and document applications. It also reveals execution of any file-manipulation tools, PDF editors, or macro-enabled scripts that may have been used to alter records.',
-        location:'ROOT\\Windows\\Prefetch\\',
-        what:'App execution timestamps, run count, first/last execution, loaded DLLs (revealing features used)',
-        os:['win10','win7','winxp'],
-        axiom:'AXIOM parses prefetch files and cross-references execution times with document access events.',
-      },
-      {
-        id:'jump_lists',
-        priority:'high',
-        icon:'📋',
-        name:'Jump Lists',
-        why:'Jump lists provide a per-application recent file list. In fraud cases, the Excel or Acrobat jump lists may reveal financial spreadsheets or invoices that were accessed but later deleted from the file system.',
-        location:'%APPDATA%\\Microsoft\\Windows\\Recent\\AutomaticDestinations\\',
-        what:'Per-app recent file access history, precise timestamps, file paths',
-        os:['win10','win7'],
-        axiom:'AXIOM correlates jump list data with document metadata to build a complete document access timeline.',
-      },
-      {
-        id:'browser_hist',
-        priority:'high',
-        icon:'🌐',
-        name:'Browser History / Downloads',
-        why:'Subjects in fraud cases often research methods online, access web-based banking, or download forged document templates. Browser history and download records provide the research trail.',
-        location:'Chrome: %LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default\\History / Edge: similar path',
-        what:'URLs visited, search queries, download history, form data, saved passwords',
-        os:['all'],
-        axiom:'AXIOM is purpose-built for browser artifact recovery, parsing Chrome, Firefox, Edge, Safari, and IE including private/incognito sessions.',
-      },
-      {
-        id:'shellbags',
-        priority:'medium',
-        icon:'📁',
-        name:'Shellbags',
-        why:'Shellbags prove a suspect browsed specific folders containing financial records, even after those folders were deleted or located on a network share. Useful for establishing access to sensitive directories.',
-        location:'UsrClass.dat\\Local Settings\\Software\\Microsoft\\Windows\\Shell\\BagMRU',
-        what:'Folder structure browsed including deleted and network folders, with timestamps',
-        os:['win10','win7','winxp'],
-        axiom:'AXIOM decodes shellbag registry data and presents browsed folder hierarchy with last access times.',
-      },
-      {
-        id:'event_logs',
-        priority:'medium',
-        icon:'📊',
-        name:'Event Logs',
-        why:'Security event logs establish when the subject logged in, whether any privilege escalation occurred, and if any auditing policies were modified. Tampering with logs is itself a criminal offense.',
-        location:'ROOT\\Windows\\System32\\winevt\\Logs\\',
-        what:'Logon sessions, privilege use events, audit policy changes, object access (if auditing enabled)',
-        os:['win10','win7'],
-        axiom:'AXIOM parses all Windows event log categories with filtering by event ID and time range.',
-      },
-    ],
-  },
-
-  {
-    id:'malware',
-    emoji:'🦠',
-    name:'Malware Intrusion',
-    desc:'Ransomware, spyware, trojans, or unauthorized system compromise',
-    scene:{
-      icon:'💀',
-      title:'Scenario Context',
-      text:'A system has been compromised by malicious software. Investigation must determine the infection vector, execution timeline, persistence mechanisms, data accessed or exfiltrated, and lateral movement across the network.',
-    },
-    artifacts:[
-      {
-        id:'prefetch',
-        priority:'critical',
-        icon:'⚡',
-        name:'Prefetch Files',
-        why:'Prefetch is the first place to look for malware execution evidence. It proves when malicious executables ran, how many times, and — critically — reveals if they ran from suspicious locations like %TEMP% or user download folders rather than system32.',
-        location:'ROOT\\Windows\\Prefetch\\[MALWARE]-[HASH].pf',
-        what:'Malware execution timestamps, run count, execution path (temp/AppData/Downloads is a red flag), loaded modules',
-        os:['win10','win7','winxp'],
-        axiom:'AXIOM flags executables running from suspicious paths automatically. Cross-reference with known malware hashes via integrated threat intelligence.',
-      },
-      {
-        id:'event_logs',
-        priority:'critical',
-        icon:'📊',
-        name:'Event Logs (Security + System)',
-        why:'Event logs record the entire intrusion timeline — failed logons before successful breach, new service installation (malware persistence), privilege escalation, and lateral movement via remote logon events.',
-        location:'Security.evtx, System.evtx, Application.evtx at ROOT\\Windows\\System32\\winevt\\Logs\\',
-        what:'Event IDs: 4625 (failed logon), 7045 (new service), 4698 (scheduled task), 4624 type 3/10 (network logon)',
-        os:['win10','win7'],
-        axiom:'AXIOM parses Windows event logs with automatic highlighting of critical security event IDs associated with intrusion patterns.',
-      },
-      {
-        id:'registry_run',
-        priority:'critical',
-        icon:'🗝️',
-        name:'Registry Run Keys (Persistence)',
-        why:'Malware establishes persistence via registry Run keys to survive reboots. These keys are always present after infection even if the malware binary is deleted. They reveal the exact command used to launch the malware.',
-        location:'HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run (and RunOnce, RunServices)',
-        what:'Malware persistence command, executable path, any obfuscation/encoded commands',
-        os:['win10','win7','winxp'],
-        axiom:'AXIOM scans all Run/RunOnce/Scheduled Task registry locations and flags non-standard entries against baseline.',
-      },
-      {
-        id:'lnk_files',
-        priority:'high',
-        icon:'🔗',
-        name:'LNK Files',
-        why:'LNK files prove what documents or executables were opened — often revealing the phishing document or malicious attachment that was the infection vector. Look for LNKs pointing to unexpected locations.',
-        location:'%APPDATA%\\Microsoft\\Windows\\Recent\\',
-        what:'Execution path of infection vector, timestamps of initial compromise, linked file metadata',
-        os:['win10','win7','winxp'],
-        axiom:'AXIOM recovers LNK files from unallocated space to find infection vectors even after cleanup attempts.',
-      },
-      {
-        id:'browser_hist',
-        priority:'high',
-        icon:'🌐',
-        name:'Browser History & Downloads',
-        why:'The infection vector for drive-by downloads, phishing, or malicious installers is recorded in browser history and download logs. The exact URL, timestamp, and downloaded filename are preserved.',
-        location:'%LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default\\History & Downloads',
-        what:'Download source URL, timestamp, filename, referrer URL, any malicious redirect chains',
-        os:['all'],
-        axiom:'AXIOM recovers browser download records and cross-references URLs with threat intelligence feeds.',
-      },
-      {
-        id:'email',
-        priority:'high',
-        icon:'📧',
-        name:'Email (Phishing Artifacts)',
-        why:'Phishing emails are the most common malware vector. Recovering the original phishing email — including headers showing true origin, malicious attachments, and embedded links — is critical for attribution and building a complete timeline.',
-        location:'Outlook PST/OST, Thunderbird MBOX profile folder',
-        what:'Original phishing email with headers, attachment metadata, embedded link URLs, sender spoofing evidence',
-        os:['all'],
-        axiom:'AXIOM parses email archives and recovers deleted messages, exposing phishing emails the suspect may have tried to destroy.',
-      },
-      {
-        id:'usb_hist',
-        priority:'medium',
-        icon:'🔌',
-        name:'USB Device History',
-        why:'Malware is sometimes introduced via infected USB drives. USB history can establish that a device was connected immediately before the infection timeline begins — pointing to insider threat or physical access.',
-        location:'SYSTEM\\CurrentControlSet\\Enum\\USBSTOR',
-        what:'Device connected before infection time, serial number for device attribution, user who connected it',
-        os:['win10','win7','winxp'],
-        axiom:'AXIOM correlates USB connection times with malware execution timestamps to establish infection vector.',
-      },
-      {
-        id:'fs_info',
-        priority:'medium',
-        icon:'💾',
-        name:'File System & Unallocated Space',
-        why:'Malware operators often attempt to delete their tools after use. File carving from unallocated space can recover deleted malicious executables, config files, and exfiltrated data packages that were staged for upload.',
-        location:'Unallocated space across all volumes',
-        what:'Carved executable files, deleted scripts, staged data archives, encryption keys',
-        os:['all'],
-        axiom:'AXIOM performs deep file carving across all partitions, recovering deleted malware components and data archives.',
-      },
-    ],
-  },
-
-  {
-    id:'insider',
-    emoji:'👤',
-    name:'Insider Threat',
-    desc:'Malicious or negligent employee posing risk to organization data or systems',
-    scene:{
-      icon:'🔐',
-      title:'Scenario Context',
-      text:'A current or former employee is suspected of intentionally or negligently misusing their access to cause harm — including data sabotage, unauthorized access to sensitive systems, or leaking confidential information.',
-    },
-    artifacts:[
-      {
-        id:'event_logs',
-        priority:'critical',
-        icon:'📊',
-        name:'Event Logs (Access Audit Trail)',
-        why:'Event logs are the definitive record of system access. In insider threat cases, they reveal exactly when the subject logged in, which systems they accessed remotely, whether they escalated privileges, and if they disabled auditing — all critical for prosecution.',
-        location:'Security.evtx — Event IDs: 4624, 4634, 4672, 4688, 4740, 4771',
-        what:'All logon sessions with type, privilege assignments, process creation, account lockouts, policy changes',
-        os:['win10','win7'],
-        axiom:'AXIOM reconstructs complete user sessions from event logs and highlights privilege escalation and policy tampering events.',
-      },
-      {
-        id:'usb_hist',
-        priority:'critical',
-        icon:'🔌',
-        name:'USB Device History',
-        why:'Insider data theft almost always involves USB drives. The complete device history — combined with user attribution via MountPoints2 — creates a precise record of what was connected, when, and by which user account.',
-        location:'USBSTOR + MountedDevices + MountPoints2 (NTUSER.dat)',
-        what:'Full USB timeline with user attribution, device serial for physical device identification',
-        os:['win10','win7','winxp'],
-        axiom:'AXIOM\'s USB artifact module links device connections to specific user accounts and correlates with file access events.',
-      },
-      {
-        id:'shellbags',
-        priority:'critical',
-        icon:'📁',
-        name:'Shellbags',
-        why:'Shellbags prove a subject browsed specific network shares or sensitive directories — even if no files were copied. In insider cases, demonstrating unauthorized browsing of sensitive folders (HR, Finance, Executive) is itself significant.',
-        location:'UsrClass.dat (Win7+) / NTUSER.dat\\Software\\Microsoft\\Windows\\Shell (XP)',
-        what:'All folders browsed including network shares, deleted folders, removable device folders',
-        os:['win10','win7','winxp'],
-        axiom:'AXIOM presents shellbag folder trees with timestamps, making it easy to identify unauthorized browsing of sensitive directories.',
-      },
-      {
-        id:'user_accounts',
-        priority:'critical',
-        icon:'👥',
-        name:'User Accounts (SAM Hive)',
-        why:'The SAM hive reveals all local accounts, login counts, last login timestamps, and whether accounts were created or modified. Insiders sometimes create hidden backdoor accounts for persistent access after termination.',
-        location:'SAM\\Domains\\Account\\Users + HKLM\\Software\\Microsoft\\Windows NT\\CurrentVersion\\ProfileList',
-        what:'Account names, login counts, last login time, last password change, account creation date, disabled status',
-        os:['win10','win7','winxp'],
-        axiom:'AXIOM parses the SAM hive and ProfileList key, surfacing all user accounts including domain users and recently created/modified accounts.',
-      },
-      {
-        id:'lnk_files',
-        priority:'high',
-        icon:'🔗',
-        name:'LNK Files',
-        why:'LNK files reveal which sensitive files were opened and when. In insider cases, they establish that a subject specifically accessed HR records, executive communications, or trade secrets — rather than stumbling upon them accidentally.',
-        location:'%APPDATA%\\Microsoft\\Windows\\Recent\\ per user profile',
-        what:'Specific sensitive document access with timestamps, volume and path revealing access source',
-        os:['win10','win7','winxp'],
-        axiom:'AXIOM recovers LNK files per user profile and presents them in a consolidated file-access timeline.',
-      },
-      {
-        id:'email',
-        priority:'high',
-        icon:'📧',
-        name:'Email',
-        why:'Insiders often use personal email to exfiltrate sensitive data or communicate with external parties. Check for large attachments sent externally, forwarding rules set up to copy all email, and any encrypted communication patterns.',
-        location:'PST/OST archives, webmail browser artifacts',
-        what:'External sends, attachment sizes, email forwarding rules, contact with competitors, encrypted communications',
-        os:['all'],
-        axiom:'AXIOM recovers email archives and webmail sessions from browser cache, including forwarding rule configurations from Exchange.',
-      },
-      {
-        id:'network_shares',
-        priority:'high',
-        icon:'🌐',
-        name:'Network Shares',
-        why:'Network share registry entries reveal which network drives the subject mounted — providing evidence of access to specific server shares beyond their job role. Combined with shellbags, this creates a complete picture of unauthorized access.',
-        location:'HKCU\\Network\\ + HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Map Network Drive MRU',
-        what:'Mapped drive letters, UNC paths of network shares accessed, mapping timestamps',
-        os:['win10','win7','winxp'],
-        axiom:'AXIOM recovers network share history from NTUSER.dat hives across all user profiles on the system.',
-      },
-      {
-        id:'prefetch',
-        priority:'medium',
-        icon:'⚡',
-        name:'Prefetch Files',
-        why:'Prefetch reveals if the insider ran data aggregation tools, compression utilities, or sync applications that indicate deliberate data collection rather than normal work activity.',
-        location:'ROOT\\Windows\\Prefetch\\',
-        what:'Execution of zip/archiving tools, cloud sync apps, bulk copy utilities, any unusual tools',
-        os:['win10','win7','winxp'],
-        axiom:'AXIOM flags execution of known data exfiltration and staging tools against an automatically maintained reference list.',
-      },
-    ],
-  },
-
-  {
-    id:'harassment',
-    emoji:'⚠️',
-    name:'Harassment / HR',
-    desc:'Workplace harassment, cyberbullying, or threatening communications investigation',
-    scene:{
-      icon:'🛡️',
-      title:'Scenario Context',
-      text:'An employee or individual is accused of harassment, cyberbullying, or sending threatening communications via digital channels. Investigation must establish authorship, intent, and communication history.',
-    },
-    artifacts:[
-      {
-        id:'email',
-        priority:'critical',
-        icon:'📧',
-        name:'Email (Full Archive)',
-        why:'Email is the primary evidence source in harassment cases. Full archive recovery — including deleted items, draft messages never sent, and the complete headers proving actual sender — is the foundation of these investigations.',
-        location:'PST/OST: %LOCALAPPDATA%\\Microsoft\\Outlook\\ + Thunderbird MBOX profile',
-        what:'Full message content, headers (true sender IP), deleted message recovery, draft recovery, contact list',
-        os:['all'],
-        axiom:'AXIOM recovers PST/OST archives and deleted email content, including messages emptied from the Deleted Items folder.',
-      },
-      {
-        id:'browser_hist',
-        priority:'critical',
-        icon:'🌐',
-        name:'Browser History & Web Activity',
-        why:'Harassing messages sent via webmail, social media, or anonymous platforms leave traces in browser history. Browser artifacts prove which accounts were accessed, from which device, and when — establishing authorship.',
-        location:'Chrome History/Cookies: %LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default\\',
-        what:'Webmail access logs, social media sessions, anonymous messaging platforms, search history (victim research)',
-        os:['all'],
-        axiom:'AXIOM is purpose-built for browser artifact recovery, recovering full browsing sessions including private/incognito mode remnants.',
-      },
-      {
-        id:'lnk_files',
-        priority:'high',
-        icon:'🔗',
-        name:'LNK Files',
-        why:'LNK files prove that specific documents — threatening letters, harassing content, images of victims — were created or opened on the device, directly linking the subject to the content.',
-        location:'%APPDATA%\\Microsoft\\Windows\\Recent\\',
-        what:'Document access timestamps, paths to content created, file metadata of threatening material',
-        os:['win10','win7','winxp'],
-        axiom:'AXIOM recovers LNK files that link the subject to specific documents used in harassment even after deletion.',
-      },
-      {
-        id:'prefetch',
-        priority:'high',
-        icon:'⚡',
-        name:'Prefetch Files',
-        why:'Prefetch proves execution of specific messaging apps, social media clients, or email clients at exact times. Timestamps can be correlated directly with when harassing messages were sent or when threatening content was created.',
-        location:'ROOT\\Windows\\Prefetch\\',
-        what:'Email client execution timestamps, social media app execution, any anonymous messaging tools run',
-        os:['win10','win7','winxp'],
-        axiom:'AXIOM cross-references prefetch execution times with communication timestamps to establish active use during incident windows.',
-      },
-      {
-        id:'user_accounts',
-        priority:'high',
-        icon:'👥',
-        name:'User Accounts & Login Timestamps',
-        why:'User account login data proves the specific user — not just the device — was active during the time harassment occurred. This is critical for multi-user environments or shared computers where the subject may claim someone else was logged in.',
-        location:'SAM hive + Event Logs Security.evtx (Event ID 4624)',
-        what:'Specific user logon timestamps correlated with incident times, login type (interactive vs. remote)',
-        os:['win10','win7','winxp'],
-        axiom:'AXIOM combines SAM hive data and event logs to build a per-user session timeline proving who was logged in during incidents.',
-      },
-      {
-        id:'documents',
-        priority:'high',
-        icon:'📄',
-        name:'Document Metadata',
-        why:'If threatening letters or harassing documents were created, metadata proves authorship via the Author field, creation timestamp, and editing time — regardless of the subject\'s denials.',
-        location:'Embedded in .docx, .pdf, .odt file properties',
-        what:'Author field, last modified by, creation time, total editing time, document title',
-        os:['all'],
-        axiom:'AXIOM extracts document metadata from all found files and presents it in a structured evidence report.',
-      },
-      {
-        id:'timezone',
-        priority:'medium',
-        icon:'🕐',
-        name:'Timezone Information',
-        why:'System timezone is critical for correctly interpreting all timestamps. Inconsistencies between system timezone and the geographic location of the device can indicate timezone manipulation to create a false alibi.',
-        location:'HKLM\\SYSTEM\\CurrentControlSet\\Control\\TimeZoneInformation',
-        what:'Current timezone, UTC offset, daylight saving state — essential for all timestamp analysis',
-        os:['win10','win7','winxp'],
-        axiom:'AXIOM automatically normalizes all artifact timestamps to UTC and records the system timezone for correct interpretation.',
-      },
-    ],
-  },
-
-  {
-    id:'data_breach',
-    emoji:'🛡️',
-    name:'Data Breach',
-    desc:'External or internal unauthorized access to sensitive corporate or personal data',
-    scene:{
-      icon:'🚨',
-      title:'Scenario Context',
-      text:'Sensitive data has been accessed or exfiltrated without authorization. Investigation must determine the scope of data accessed, method of unauthorized entry, timeline of the breach, and whether data was destroyed or transmitted externally.',
-    },
-    artifacts:[
-      {
-        id:'event_logs',
-        priority:'critical',
-        icon:'📊',
-        name:'Event Logs (Intrusion Timeline)',
-        why:'In a data breach, event logs are the authoritative record of the intrusion. They document every failed and successful authentication, every privilege escalation, every new service installation (backdoor), and any lateral movement across systems.',
-        location:'Security.evtx — critical Event IDs: 4625, 4624, 4648, 4672, 4719, 7045',
-        what:'Full authentication trail, network logon events (type 3), RDP sessions (type 10), privilege escalation, policy modifications',
-        os:['win10','win7'],
-        axiom:'AXIOM parses all event log categories and automatically surfaces intrusion-relevant event IDs with timeline visualization.',
-      },
-      {
-        id:'browser_hist',
-        priority:'critical',
-        icon:'🌐',
-        name:'Browser & Cloud Upload History',
-        why:'Data exfiltration increasingly happens via browser-based cloud storage — Google Drive, Dropbox, OneDrive uploads. Browser history, download records, and form data capture the complete upload trail.',
-        location:'Browser history databases + %APPDATA% cloud sync client logs',
-        what:'Cloud service upload activities, file transfer URLs, download history, cloud account logins, form submissions',
-        os:['all'],
-        axiom:'AXIOM recovers cloud service artifacts from browser history and cloud sync client databases, identifying what was uploaded and when.',
-      },
-      {
-        id:'usb_hist',
-        priority:'critical',
-        icon:'🔌',
-        name:'USB Device History',
-        why:'If data was exfiltrated physically, USB history provides the device fingerprint. The serial number can be matched to a physical device, and the connection timeline can be correlated with data access events.',
-        location:'SYSTEM\\CurrentControlSet\\Enum\\USBSTOR + MountPoints2',
-        what:'Device fingerprint, connection time, user who connected, drive letter assigned',
-        os:['win10','win7','winxp'],
-        axiom:'AXIOM creates a complete USB device timeline with user attribution, supporting chain-of-custody documentation.',
-      },
-      {
-        id:'registry_run',
-        priority:'critical',
-        icon:'🗝️',
-        name:'Registry Persistence Keys',
-        why:'Sophisticated breach actors install persistent backdoors via registry Run keys or scheduled tasks to maintain access. These entries remain even after the actor believes they\'ve cleaned up.',
-        location:'HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run + HKLM\\SYSTEM\\CurrentControlSet\\Services',
-        what:'Unauthorized persistence commands, backdoor service registrations, encoded/obfuscated launch commands',
-        os:['win10','win7','winxp'],
-        axiom:'AXIOM scans all persistence registry locations and compares against known-good baselines to identify unauthorized entries.',
-      },
-      {
-        id:'prefetch',
-        priority:'high',
-        icon:'⚡',
-        name:'Prefetch Files',
-        why:'Prefetch proves execution of attacker tools — port scanners, credential dumpers (mimikatz), lateral movement tools (psexec), or data staging utilities — with precise timestamps establishing the attack timeline.',
-        location:'ROOT\\Windows\\Prefetch\\',
-        what:'Execution timestamps for attack tools, tool paths (temp directories), run counts indicating systematic operation',
-        os:['win10','win7','winxp'],
-        axiom:'AXIOM flags prefetch entries matching known attack tool names and suspicious execution paths automatically.',
-      },
-      {
-        id:'shellbags',
-        priority:'high',
-        icon:'📁',
-        name:'Shellbags',
-        why:'If an attacker (or insider) browsed network shares or sensitive file server directories looking for valuable data, shellbags provide a map of exactly what directories were explored — even after the access.',
-        location:'UsrClass.dat\\Local Settings\\Software\\Microsoft\\Windows\\Shell\\BagMRU',
-        what:'All network shares and file server paths browsed, helping establish reconnaissance and data identification activity',
-        os:['win10','win7','winxp'],
-        axiom:'AXIOM decodes shellbag structures and maps the browsed folder hierarchy including remote network paths.',
-      },
-      {
-        id:'os_info',
-        priority:'medium',
-        icon:'🖥️',
-        name:'OS & File System Information',
-        why:'OS information establishes the exact system state — Windows version, patch level, last shutdown time, and file system details. Unpatched vulnerabilities may explain the attack vector. Last shutdown time can reveal if the attacker powered off the system.',
-        location:'HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion + HKLM\\SYSTEM\\CurrentControlSet\\Control\\Windows',
-        what:'OS version, patch/service pack level, install date, last shutdown time, volume serial number',
-        os:['win10','win7','winxp'],
-        axiom:'AXIOM automatically extracts and displays OS baseline information as part of every case examination.',
-      },
-    ],
-  },
-
-  {
-    id:'missing_person',
-    emoji:'🔎',
-    name:'Missing Person',
-    desc:'Locating a missing individual using digital breadcrumbs and last-known activities',
-    scene:{
-      icon:'📍',
-      title:'Scenario Context',
-      text:'A person has gone missing and their device may contain critical last-known location data, communication history, and activity timeline. Digital artifacts can establish the last verified activity before disappearance.',
-    },
-    artifacts:[
-      {
-        id:'browser_hist',
-        priority:'critical',
-        icon:'🌐',
-        name:'Browser History & Search Queries',
-        why:'Browser history is often the most revealing artifact in missing person cases. Search queries in the days and hours before disappearance — locations searched, routes mapped, people contacted — can reconstruct intent and destination.',
-        location:'Chrome: %LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default\\History',
-        what:'Search queries, maps/directions searched, accommodation lookups, contact searches, last browsing session timestamp',
-        os:['all'],
-        axiom:'AXIOM recovers full browser history including search queries from all major browsers with precise timestamps for timeline construction.',
-      },
-      {
-        id:'email',
-        priority:'critical',
-        icon:'📧',
-        name:'Email & Messaging',
-        why:'Last communications before disappearance — including any messages indicating plans, distress, threats received, or contact with unknown individuals — are critical. Recover drafts and deleted messages that may contain communications the person attempted to hide.',
-        location:'PST/OST archives + webmail browser artifacts + messaging app databases',
-        what:'Final communications, draft messages, deleted sent items, contact with unknown individuals, geolocation data in email metadata',
-        os:['all'],
-        axiom:'AXIOM recovers email, SMS, and messaging app data from devices, including deleted content and draft messages.',
-      },
-      {
-        id:'lnk_files',
-        priority:'high',
-        icon:'🔗',
-        name:'LNK Files (Last File Activity)',
-        why:'LNK files establish the last documents the person opened — potentially including travel documents, maps, identity documents, or personal records that reveal what they were planning or preparing.',
-        location:'%APPDATA%\\Microsoft\\Windows\\Recent\\',
-        what:'Last document access timestamps, file paths indicating documents prepared before disappearance',
-        os:['win10','win7','winxp'],
-        axiom:'AXIOM presents LNK files in chronological order, making it easy to see the last files accessed before the device went offline.',
-      },
-      {
-        id:'prefetch',
-        priority:'high',
-        icon:'⚡',
-        name:'Prefetch (Last Application Usage)',
-        why:'Prefetch files reveal which applications were last used — mapping apps, communication tools, VPN clients, or encrypted messaging platforms — giving insight into the person\'s state and intentions before disappearance.',
-        location:'ROOT\\Windows\\Prefetch\\',
-        what:'Last application execution timestamps, VPN or anonymous browsing tool usage, communication app activity',
-        os:['win10','win7','winxp'],
-        axiom:'AXIOM presents prefetch execution history in a timeline view that can be narrowed to the critical window before disappearance.',
-      },
-      {
-        id:'timezone',
-        priority:'high',
-        icon:'🕐',
-        name:'Timezone & OS Timestamps',
-        why:'Timezone calibration is essential for correlating device timestamps with real-world events. Establishing the last system activity timestamp — the last time the device touched a network or the OS registered activity — helps establish the last known timeline.',
-        location:'HKLM\\SYSTEM\\CurrentControlSet\\Control\\TimeZoneInformation + OS shutdown registry keys',
-        what:'System timezone, last shutdown time, last network connection time, OS install date',
-        os:['win10','win7','winxp'],
-        axiom:'AXIOM normalizes all timestamps to UTC and logs last system shutdown time as part of the baseline OS report.',
-      },
-      {
-        id:'user_accounts',
-        priority:'medium',
-        icon:'👥',
-        name:'User Accounts & Last Login',
-        why:'Last login timestamps from the SAM hive establish the final verified time the person was at the device. This anchors the entire timeline and confirms ownership of the activity record.',
-        location:'SAM\\Domains\\Account\\Users + Event Log Event ID 4624',
-        what:'Last login timestamp, login count, profile creation date — establishing device ownership and last use',
-        os:['win10','win7','winxp'],
-        axiom:'AXIOM extracts user account data and correlates last login with event log timestamps to confirm last verified device access.',
-      },
-    ],
-  },
+  {id:'ip_theft',emoji:'💼',name:'IP Theft',desc:'Trade secrets, source code or customer data taken by a departing employee or contractor',
+    scene:{icon:'🕵️',text:'An employee is suspected of taking trade secrets, source code, pricing or customer lists before resigning. Establish what was accessed, how it left (USB, personal cloud, email, AI tools) and when, usually within a 30–90 day window before departure.',
+      first:'Preserve cloud audit logs and SRUM before the laptop is re-imaged. Re-imaging returned devices is the most common way IP-theft evidence is lost.'},
+    items:[
+      ['usb','critical','Direct evidence of physical exfiltration: a personal USB drive first connected in the final weeks of employment is a classic finding.'],
+      ['lnk','critical','Proves which confidential files were opened, including files opened directly from the USB drive or personal cloud folder.'],
+      ['cloudsync','critical','Personal OneDrive, Google Drive or Dropbox clients syncing work folders is today\'s most common silent exfil path.'],
+      ['srum','critical','Quantifies how much data each app (browser, sync client, rclone) sent out, and when.'],
+      ['shellbags','critical','Shows the suspect browsing project folders, file shares or USB folders they had no business opening.'],
+      ['m365','high','Mass FileDownloaded / FileSyncDownloadedFull events from SharePoint, plus external sharing links created before departure.'],
+      ['browser','high','Uploads to personal webmail, file-transfer sites (WeTransfer, MEGA), and job-search or competitor research.'],
+      ['genai','high','Source code or documents pasted into public AI tools is a growing leak vector, even when there\'s no intent to steal.'],
+      ['exfil','high','Archive passwords, rclone remotes or SFTP destinations reveal deliberate, planned exfiltration.'],
+      ['jumplists','high','Corroborates per-application document access with timestamps independent of the file system.'],
+      ['fsevents','high','The macOS equivalent of the copy trail: files written to external volumes show up in that volume\'s FSEvents.'],
+      ['email','medium','Attachments forwarded to personal addresses. Check sent items and recoverable items.'],
+      ['mft','medium','Bulk deletions or wipes right before handing the laptop back (anti-forensics).'],
+      ['prefetch','medium','Execution of copy and archive utilities (robocopy, 7-Zip, WinRAR, rclone) and secure-delete tools.'],
+      ['docmeta','medium','Shows whether "new" documents at the competitor were derived from your templates.'],
+      ['recall','medium','On Copilot+ PCs with Recall enabled, snapshots can show the exact documents and screens viewed before departure.'],
+    ]},
+  {id:'fraud',emoji:'💰',name:'Financial Fraud',desc:'Falsified records, fake invoices, expense or payment manipulation',
+    scene:{icon:'🔎',text:'A subject is suspected of fabricating or altering invoices, contracts or financial records, or of diverting payments. The investigation centers on document authenticity, who edited what and when, and the communication chain behind approvals.',
+      first:'Pull version history from SharePoint, OneDrive or Google Drive early. Cloud revision history is often stronger proof than local metadata.'},
+    items:[
+      ['docmeta','critical','Reveals backdated documents, the wrong author, and impossible editing times or PDF producers that contradict the claimed date.'],
+      ['m365','critical','Who downloaded, edited or deleted finance files and created inbox rules to hide vendor replies.'],
+      ['email','critical','Approval chains, vendor bank-change requests and deleted threads. Full headers prove the true sender.'],
+      ['lnk','critical','Places the subject opening specific ledgers or invoice files they claim never to have touched.'],
+      ['mft','high','Exposes timestomping ($SI vs $FN mismatch) and deletion of source spreadsheets.'],
+      ['jumplists','high','Excel and PDF-editor jump lists list documents accessed, even ones later deleted.'],
+      ['browser','high','Online banking sessions, PDF-editing or template sites and invoice-generator services.'],
+      ['cloudsync','high','Shadow copies of altered documents kept in personal cloud storage.'],
+      ['chat','high','Side-channel coordination on Teams, Slack or WhatsApp that bypasses email monitoring.'],
+      ['prefetch','medium','PDF editors, image editors or scripting tools run around the time documents were altered.'],
+      ['shellbags','medium','Browsing restricted finance shares.'],
+      ['logon','medium','Ties edits to an interactive session by the subject, not a shared or service account.'],
+      ['mobcomms','medium','Personal-phone messages with accomplices or vendors.'],
+    ]},
+  {id:'ransomware',emoji:'🦠',name:'Ransomware & Malware',desc:'Encryption, data-theft extortion, trojans or hands-on-keyboard intrusion',
+    scene:{icon:'💀',text:'Systems are encrypted and/or data was stolen for double extortion. Identify initial access (phishing, exposed RDP/VPN, abused RMM, unpatched edge device), dwell time, lateral movement, what was exfiltrated and the encryption scope.',
+      first:'Isolate the network, don\'t power off. Capture memory, preserve logs centrally, and check whether backups and hypervisors (ESXi) were targeted.'},
+    items:[
+      ['memory','critical','Live processes, C2 connections, injected code and sometimes encryption keys. All lost at shutdown.'],
+      ['logon','critical','Brute force (4625 bursts), RDP logons (type 10), and lateral movement with valid accounts (type 3).'],
+      ['persistlog','critical','New services (7045), scheduled tasks and log clearing (1102/104) are core hands-on-keyboard indicators.'],
+      ['ransom','critical','Dates when recovery was disabled and encryption started, and identifies patient zero and the family.'],
+      ['rmm','critical','AnyDesk, ScreenConnect and other RMM tools installed by the actor for access and persistence.'],
+      ['autoruns','critical','Run keys, tasks and WMI subscriptions that let the actor survive reboots and re-infect.'],
+      ['exfil','high','rclone, MEGA or SFTP staging proves data theft and sizes the extortion and notification exposure.'],
+      ['powershell','high','Decoded script blocks reveal downloaders, AV tampering and discovery commands.'],
+      ['defender','high','Earlier detections the team missed, plus real-time protection being disabled before deployment.'],
+      ['amcache','high','SHA-1 hashes and first-seen times of attacker tools, even after deletion.'],
+      ['prefetch','high','Execution of tools like PsExec, Mimikatz, AdFind, network scanners and the encryptor itself.'],
+      ['linuxauth','high','ESXi and Linux servers are prime targets. Check for SSH being enabled and root logins before encryption.'],
+      ['browser','high','Malvertising, fake browser updates and malicious downloads used for initial access.'],
+      ['email','high','The phishing email, its attachment or link, and its full headers.'],
+      ['mft','medium','$UsnJrnl rename bursts mark encryption; carving recovers deleted tools and staged archives.'],
+      ['srum','medium','Per-process bytes sent confirm the exfiltration volume.'],
+      ['rdpcache','medium','Shows which hosts the attacker pivoted to and what they saw on screen.'],
+      ['linuxpersist','medium','Cron and systemd persistence on Linux footholds, and shell history.'],
+      ['macpersist','medium','Mac endpoints: malicious LaunchAgents/Daemons and abused TCC permissions (screen recording, Full Disk Access).'],
+      ['macquar','medium','Mac endpoints: where the malicious installer or fake app was downloaded from.'],
+    ]},
+  {id:'bec',emoji:'📨',name:'Business Email Compromise',desc:'Mailbox takeover, invoice redirection, MFA fatigue or AiTM phishing',isNew:true,
+    scene:{icon:'🎣',text:'A mailbox or cloud account was taken over, often through adversary-in-the-middle (AiTM) phishing that steals session cookies and bypasses MFA. The attacker hides with inbox rules and redirects payments with look-alike domains.',
+      first:'Revoke sessions and refresh tokens, reset credentials, and export the Unified Audit Log and sign-in logs immediately. Free-tier sign-in logs keep only 7 days.'},
+    items:[
+      ['m365','critical','Malicious sign-ins (new IP, ASN or user agent), MailItemsAccessed showing what the attacker read, and inbox or forwarding rules.'],
+      ['gws','critical','The Google Workspace equivalent: suspicious logins, OAuth grants and Gmail filter or forwarding changes.'],
+      ['email','critical','Full headers of the phishing lure and the fraudulent payment emails, plus look-alike domains and reply-to tricks.'],
+      ['browser','high','Visit to the AiTM phishing page and the credential-entry timestamp on the victim\'s device.'],
+      ['mobcomms','high','MFA fatigue prompts, SMS lures (smishing) or callback-phishing on the victim\'s phone.'],
+      ['chat','high','External Teams/Slack messages impersonating IT or executives.'],
+      ['docmeta','high','Altered invoices or bank-detail letters: compare producer, author and revision against genuine ones.'],
+      ['lnk','medium','Opened HTML-smuggling or QR-code attachments that started the compromise.'],
+      ['defender','medium','Blocked or allowed phishing URLs and attachments around the incident date.'],
+    ]},
+  {id:'insider',emoji:'👤',name:'Insider Threat',desc:'Malicious or negligent misuse of legitimate access, sabotage or leaking',
+    scene:{icon:'🔐',text:'A current or former employee is suspected of misusing legitimate access: browsing data beyond their role, leaking it, sabotaging systems or planting logic bombs. Prove intent, attribution to the specific user, and scope.',
+      first:'Coordinate with HR and legal before tipping off the subject. Preserve cloud logs and endpoint images quietly, and document authorization.'},
+    items:[
+      ['logon','critical','Definitive session timeline: after-hours logons, privilege use (4672) and remote access.'],
+      ['m365','critical','Mass downloads, external sharing and access to HR/executive SharePoint sites outside the subject\'s role.'],
+      ['usb','critical','Device timeline with user attribution via MountPoints2.'],
+      ['shellbags','critical','Proves deliberate browsing of sensitive shares (HR, Finance, M&A) even when nothing was copied.'],
+      ['accounts','critical','Backdoor or hidden accounts created for access after termination.'],
+      ['lnk','high','Specific sensitive documents opened, showing intent rather than accidental exposure.'],
+      ['network','high','Mapped drives and UNC paths beyond the subject\'s job function.'],
+      ['cloudsync','high','Personal sync clients moving company data off-network.'],
+      ['genai','high','Confidential data pasted into consumer AI tools, a leading negligent-insider pattern.'],
+      ['chat','high','Leaks to outsiders or coordination via messaging apps.'],
+      ['exfil','high','Archives and transfer tools staged for bulk removal.'],
+      ['linuxauth','high','Privileged admins: SSH sessions, sudo use and keys added to servers.'],
+      ['autoruns','medium','Scheduled tasks or scripts planted as logic bombs to fire after departure.'],
+      ['powershell','medium','Scripted bulk collection or destructive commands.'],
+      ['bam','medium','Recent execution of tools per user SID.'],
+      ['macul','medium','Mac users: logins, sudo use and external device connections in unified logs.'],
+      ['prefetch','medium','Execution of archiving, sync and secure-delete tools.'],
+    ]},
+  {id:'breach',emoji:'🚨',name:'Data Breach / Intrusion',desc:'Unauthorized access to systems or regulated data by an external actor',
+    scene:{icon:'🛡️',text:'Sensitive or regulated data (PII, PHI, card data) may have been accessed. Determine the entry vector, attacker activity, data touched and exfiltrated, and timeline. These findings drive regulatory notification decisions under privacy laws and breach-notice deadlines.',
+      first:'Start a privileged, counsel-directed investigation early, and note notification clocks (e.g. 72 hours under GDPR, SEC 8-K materiality, state and provincial rules).'},
+    items:[
+      ['logon','critical','Authoritative intrusion trail: brute force, valid-account abuse, RDP and lateral movement.'],
+      ['autoruns','critical','Backdoors and persistence that survive cleanup.'],
+      ['persistlog','critical','Service and task creation plus log clearing pin down attacker actions and timing.'],
+      ['memory','critical','Fileless implants and C2 that never touched disk.'],
+      ['m365','critical','Cloud-side access: mailbox reads, SharePoint downloads and OAuth app abuse.'],
+      ['exfil','critical','Defines what left and where, which is the core question for notification scope.'],
+      ['powershell','high','Discovery and collection scripts show what data the actor searched for.'],
+      ['srum','high','Quantifies bytes sent per process for exfiltration sizing.'],
+      ['rdpcache','high','Lateral movement path and on-screen activity.'],
+      ['amcache','high','Hashes of attacker tools for IOC sharing and scoping.'],
+      ['prefetch','high','Credential dumpers, scanners and archivers executed on each host.'],
+      ['linuxauth','high','Web servers, databases and appliances are often the real entry point.'],
+      ['linuxpersist','high','Web shells, cron jobs and SSH keys on Linux servers.'],
+      ['browser','high','Initial access via drive-by download or credential phishing.'],
+      ['defender','medium','Missed or ignored alerts that establish dwell time.'],
+      ['network','medium','VPN and remote access profiles, plus share access during the intrusion window.'],
+      ['sysinfo','medium','Patch level (an unpatched CVE as entry vector) and time zone normalization.'],
+      ['mft','medium','Staged archives, deleted tools and timestomped files.'],
+      ['macul','medium','Mac endpoints in scope: authentication, process and network events from unified logs.'],
+    ]},
+  {id:'harassment',emoji:'⚠️',name:'Harassment / HR',desc:'Workplace harassment, threats, cyberbullying or misconduct',
+    scene:{icon:'🧾',text:'An employee is accused of harassment, threats or misconduct through digital channels. The investigation must establish authorship (who, not just which device), the full communication history and intent, while protecting the complainant\'s privacy.',
+      first:'Scope collection narrowly to what policy and law allow. Proportionality matters in HR matters and in privacy-regulated jurisdictions.'},
+    items:[
+      ['email','critical','Full message archive including deleted items and drafts. Headers prove the actual sender.'],
+      ['chat','critical','Most workplace harassment now happens in Teams, Slack or DMs. Recover edits and deletions.'],
+      ['mobcomms','critical','Messages and calls from a company or personal device (with authority/consent).'],
+      ['browser','critical','Webmail, social media or anonymous-messaging sessions establish account use from this device.'],
+      ['m365','high','Sign-in IPs and devices tie messages to the subject\'s session, not a shared login.'],
+      ['logon','high','Proves the subject was the interactive user at the time messages were sent.'],
+      ['lnk','high','Links the subject to documents or images used in the harassment.'],
+      ['docmeta','high','Authorship and creation time of threatening letters, edited images or deepfake media.'],
+      ['sysinfo','medium','Correct time zone to align device times with the complainant\'s timeline.'],
+      ['mobbackup','medium','Older messages preserved in phone backups.'],
+      ['prefetch','medium','Messaging or anonymizing tools run at the incident times.'],
+    ]},
+  {id:'missing',emoji:'🧭',name:'Missing Person',desc:'Locating an individual from digital breadcrumbs and last-known activity',
+    scene:{icon:'📍',text:'A person is missing and their devices may hold their last known location, communications and intent. Speed matters. Prioritize location and communication artifacts and build a minute-by-minute timeline of the final hours.',
+      first:'Phones first: keep the device powered and isolated from networks (Faraday bag) to prevent remote wipe while preserving location caches.'},
+    items:[
+      ['mobloc','critical','Significant locations, Timeline and photo GPS give the last known places and routes.'],
+      ['mobcomms','critical','Final messages and calls, plus contact with unknown numbers.'],
+      ['browser','critical','Searches in the final days (destinations, routes, accommodation, people) reveal intent.'],
+      ['mobusage','critical','Pinpoints the last moment the phone was actively used (unlock, app use, motion).'],
+      ['chat','high','Social and messaging apps where plans or distress are often discussed.'],
+      ['email','high','Bookings, tickets and confirmations; drafts never sent.'],
+      ['network','high','Wi-Fi networks joined place the laptop at specific locations and times.'],
+      ['mobbackup','high','Backups or cloud data if the phone itself is missing.'],
+      ['macact','medium','On a Mac, the last app use and screen unlock times.'],
+      ['lnk','medium','Last documents opened: travel papers, maps, letters.'],
+      ['logon','medium','Last interactive logon on the computer anchors the timeline.'],
+      ['sysinfo','medium','Time zone and last shutdown for accurate correlation.'],
+    ]},
 ];
 
 /* ═══════════════════════════════════════════════════
    STATE
 ═══════════════════════════════════════════════════ */
+const LS_KEY = 'dfir-builder:v2';
 let selectedScenario = null;
-let selectedOS = 'all';
+let selectedPlatforms = new Set(PLATFORMS.map(p => p.id));
 let checked = new Set();
+let expanded = new Set();
+let query = '';
+let hideDone = false;
+
+const $ = id => document.getElementById(id);
+const store = {
+  get(){ try { return JSON.parse(localStorage.getItem(LS_KEY)) || {}; } catch(e){ return {}; } },
+  set(v){ try { localStorage.setItem(LS_KEY, JSON.stringify(v)); } catch(e){} },
+};
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 /* ═══════════════════════════════════════════════════
    INIT
 ═══════════════════════════════════════════════════ */
-window.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', () => {
+  $('yr').textContent = new Date().getFullYear();
+  const allTech = new Set(Object.values(A).flatMap(a => a.mitre));
+  $('heroFacts').innerHTML = [
+    [SCENARIOS.length,'Case types'],[Object.keys(A).length,'Artifacts'],
+    [PLATFORMS.length,'Platforms'],[allTech.size,'ATT&CK IDs'],
+  ].map(([n,l]) => `<div class="hf"><b>${n}</b><span>${l}</span></div>`).join('');
+
   buildScenarioGrid();
   buildOsRow();
+  bindUI();
+
+  const saved = store.get();
+  if(saved.caseId) $('caseId').value = saved.caseId;
+  if(saved.examiner) $('examiner').value = saved.examiner;
+  readHash();
 });
 
 function buildScenarioGrid(){
-  const g = document.getElementById('scenarioGrid');
-  SCENARIOS.forEach(s => {
-    const btn = document.createElement('button');
-    btn.className = 'sc-btn';
-    btn.id = 'sc-' + s.id;
-    btn.innerHTML = `<span class="sc-emoji">${s.emoji}</span><div class="sc-name">${s.name}</div><div class="sc-desc">${s.desc}</div>`;
-    btn.onclick = () => selectScenario(s.id);
-    g.appendChild(btn);
+  $('scenarioGrid').innerHTML = SCENARIOS.map(s => `
+    <button class="sc-btn" type="button" id="sc-${s.id}" aria-pressed="false" data-id="${s.id}">
+      ${s.isNew ? '<span class="sc-new">NEW</span>' : ''}
+      <span class="sc-emoji" aria-hidden="true">${s.emoji}</span>
+      <div class="sc-name">${s.name}</div>
+      <div class="sc-desc">${s.desc}</div>
+    </button>`).join('');
+  $('scenarioGrid').addEventListener('click', e => {
+    const b = e.target.closest('.sc-btn'); if(b) selectScenario(b.dataset.id, true);
   });
 }
 
 function buildOsRow(){
-  const r = document.getElementById('osRow');
-  OS_OPTIONS.forEach(o => {
-    const btn = document.createElement('button');
-    btn.className = 'os-btn' + (o.id === selectedOS ? ' active' : '');
-    btn.id = 'os-' + o.id;
-    btn.innerHTML = `<div class="os-dot"></div>${o.icon} ${o.label}`;
-    btn.onclick = () => selectOS(o.id);
-    r.appendChild(btn);
+  $('osRow').innerHTML = PLATFORMS.map(p => `
+    <button class="os-btn" type="button" data-id="${p.id}" aria-pressed="true">
+      <span class="os-box" aria-hidden="true"></span>${p.icon} ${p.label}
+    </button>`).join('');
+  $('osRow').addEventListener('click', e => {
+    const b = e.target.closest('.os-btn'); if(!b) return;
+    const id = b.dataset.id;
+    if(selectedPlatforms.has(id)){
+      if(selectedPlatforms.size === 1) return; // keep at least one
+      selectedPlatforms.delete(id);
+    } else selectedPlatforms.add(id);
+    syncPlatformButtons();
+    writeHash();
+    if(selectedScenario) renderResults();
   });
 }
 
-function selectScenario(id){
-  selectedScenario = id;
-  checked = new Set();
-  document.querySelectorAll('.sc-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('sc-' + id).classList.add('active');
-  renderResults();
+function syncPlatformButtons(){
+  document.querySelectorAll('.os-btn').forEach(b => b.setAttribute('aria-pressed', selectedPlatforms.has(b.dataset.id)));
 }
 
-function selectOS(id){
-  selectedOS = id;
-  document.querySelectorAll('.os-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('os-' + id).classList.add('active');
-  if(selectedScenario) renderResults();
+function bindUI(){
+  $('search').addEventListener('input', e => { query = e.target.value.trim().toLowerCase(); renderList(); });
+  $('expandAll').addEventListener('click', () => {
+    const vis = visibleItems();
+    const allOpen = vis.every(it => expanded.has(it.id));
+    vis.forEach(it => allOpen ? expanded.delete(it.id) : expanded.add(it.id));
+    $('expandAll').textContent = allOpen ? '⊞ Expand all' : '⊟ Collapse all';
+    renderList();
+  });
+  $('hideDone').addEventListener('click', e => {
+    hideDone = !hideDone;
+    e.currentTarget.setAttribute('aria-pressed', hideDone);
+    e.currentTarget.textContent = hideDone ? '● Show collected' : '◌ Hide collected';
+    renderList();
+  });
+  ['caseId','examiner'].forEach(id => $(id).addEventListener('input', () => {
+    const s = store.get(); s[id] = $(id).value; store.set(s);
+  }));
+  $('btnReset').addEventListener('click', resetChecks);
+  $('btnMd').addEventListener('click', exportMarkdown);
+  $('btnCsv').addEventListener('click', exportCsv);
+  $('btnPrint').addEventListener('click', () => {
+    scenarioItems().forEach(it => expanded.add(it.id)); renderList(); window.print();
+  });
+  $('btnCopyLink').addEventListener('click', async e => {
+    const btn = e.currentTarget;
+    try { await navigator.clipboard.writeText(location.href); btn.textContent = '✓ Link copied'; }
+    catch(err){ btn.textContent = 'Copy from address bar'; }
+    setTimeout(() => btn.innerHTML = '🔗<span class="bl"> Share link</span>', 1800);
+  });
+  $('artifactList').addEventListener('click', e => {
+    const t = e.target.closest('.ac-toggle'); if(!t) return;
+    const id = t.dataset.id;
+    expanded.has(id) ? expanded.delete(id) : expanded.add(id);
+    const card = $('card-' + id);
+    card.classList.toggle('expanded', expanded.has(id));
+    t.setAttribute('aria-expanded', expanded.has(id));
+  });
+  $('artifactList').addEventListener('change', e => {
+    if(!e.target.classList.contains('ac-check')) return;
+    toggleCheck(e.target.dataset.id, e.target.checked);
+  });
+  window.addEventListener('hashchange', readHash);
+}
+
+/* ── URL hash: #case=ip_theft&p=win,mac ── */
+function writeHash(){
+  const p = new URLSearchParams();
+  if(selectedScenario) p.set('case', selectedScenario);
+  if(selectedPlatforms.size !== PLATFORMS.length) p.set('p', [...selectedPlatforms].join(','));
+  const h = p.toString();
+  try { history.replaceState(null, '', h ? '#' + h : location.pathname + location.search); } catch(e) {}
+}
+function readHash(){
+  const p = new URLSearchParams(location.hash.slice(1));
+  const plats = (p.get('p') || '').split(',').filter(id => PLATFORMS.some(x => x.id === id));
+  selectedPlatforms = new Set(plats.length ? plats : PLATFORMS.map(x => x.id));
+  syncPlatformButtons();
+  const c = p.get('case');
+  if(c && SCENARIOS.some(s => s.id === c)) selectScenario(c, false);
 }
 
 /* ═══════════════════════════════════════════════════
-   RENDER RESULTS
+   SELECTION & DATA HELPERS
 ═══════════════════════════════════════════════════ */
+function selectScenario(id, scroll){
+  selectedScenario = id;
+  const saved = store.get();
+  checked = new Set((saved.progress || {})[id] || []);
+  expanded = new Set();
+  query = ''; $('search').value = '';
+  $('expandAll').textContent = '⊞ Expand all';
+  document.querySelectorAll('.sc-btn').forEach(b => {
+    const on = b.dataset.id === id;
+    b.classList.toggle('active', on); b.setAttribute('aria-pressed', on);
+  });
+  writeHash();
+  renderResults();
+  if(scroll) $('resultsPanel').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function scenarioItems(){
+  const s = SCENARIOS.find(x => x.id === selectedScenario);
+  if(!s) return [];
+  return s.items
+    .map(([id, priority, why]) => ({id, priority, why, ...A[id]}))
+    .filter(it => it.pf.some(p => selectedPlatforms.has(p)));
+}
+
+function matches(it){
+  if(!query) return true;
+  const hay = [it.n, it.why, it.cap, it.tools, it.tip || '', ...it.loc, ...it.mitre, ...it.mitre.map(m => MITRE_NAMES[m] || '')].join(' ').toLowerCase();
+  return hay.includes(query);
+}
+function visibleItems(){
+  return scenarioItems().filter(it => matches(it) && !(hideDone && checked.has(it.id)));
+}
+
+function saveProgress(){
+  const s = store.get();
+  s.progress = s.progress || {};
+  s.progress[selectedScenario] = [...checked];
+  store.set(s);
+}
+
+/* ═══════════════════════════════════════════════════
+   RENDER
+═══════════════════════════════════════════════════ */
+const GROUPS = [
+  {key:'critical', label:'Critical: collect first', color:'var(--red)'},
+  {key:'high',     label:'High priority',           color:'var(--amber)'},
+  {key:'medium',   label:'Supporting',              color:'var(--cyan)'},
+];
+
 function renderResults(){
   const scenario = SCENARIOS.find(s => s.id === selectedScenario);
   if(!scenario) return;
+  $('emptyState').style.display = 'none';
+  $('resultsPanel').style.display = 'block';
+  $('checklistFooter').style.display = 'block';
+  $('caseLabel').textContent = '— ' + scenario.name;
 
-  document.getElementById('emptyState').style.display = 'none';
-  document.getElementById('resultsPanel').style.display = 'block';
-  document.getElementById('checklistFooter').style.display = 'block';
-
-  // Filter artifacts by OS
-  const artifacts = scenario.artifacts.filter(a => {
-    if(selectedOS === 'all') return true;
-    return a.os.includes(selectedOS) || a.os.includes('all');
-  });
-
-  // Case label
-  document.getElementById('caseLabel').textContent = `— ${scenario.name}`;
-
-  // Stats
-  const crit = artifacts.filter(a => a.priority === 'critical').length;
-  const high = artifacts.filter(a => a.priority === 'high').length;
-  const med  = artifacts.filter(a => a.priority === 'medium').length;
-  document.getElementById('statsBar').innerHTML = `
-    <div class="stat-cell"><div class="stat-num c">${crit}</div><div class="stat-lbl">Critical</div></div>
-    <div class="stat-cell"><div class="stat-num h">${high}</div><div class="stat-lbl">High</div></div>
-    <div class="stat-cell"><div class="stat-num m">${med}</div><div class="stat-lbl">Medium</div></div>
-    <div class="stat-cell"><div class="stat-num">${artifacts.length}</div><div class="stat-lbl">Total Artifacts</div></div>
-  `;
-
-  // Scene
   const sc = scenario.scene;
-  document.getElementById('sceneBox').innerHTML = `
-    <div class="scene-icon">${sc.icon}</div>
+  $('sceneBox').innerHTML = `
+    <div class="scene-icon" aria-hidden="true">${sc.icon}</div>
     <div class="scene-text">
-      <div class="scene-title">${sc.title}: ${scenario.name}</div>
+      <div class="scene-title">Scenario context: ${scenario.name}</div>
       <p>${sc.text}</p>
-    </div>
-  `;
+      <p class="first"><b>First move →</b> ${sc.first}</p>
+    </div>`;
+  renderList();
+}
 
-  // Artifacts grouped by priority
-  const list = document.getElementById('artifactList');
-  list.innerHTML = '';
+function renderStats(items){
+  const c = k => items.filter(a => a.priority === k).length;
+  const done = items.filter(a => checked.has(a.id)).length;
+  $('statsBar').innerHTML = `
+    <div class="stat-cell"><div class="stat-num c">${c('critical')}</div><div class="stat-lbl">Critical</div></div>
+    <div class="stat-cell"><div class="stat-num h">${c('high')}</div><div class="stat-lbl">High</div></div>
+    <div class="stat-cell"><div class="stat-num m">${c('medium')}</div><div class="stat-lbl">Supporting</div></div>
+    <div class="stat-cell"><div class="stat-num g">${done}<span style="font-size:14px;color:var(--muted)"> / ${items.length}</span></div><div class="stat-lbl">Collected</div></div>`;
+}
 
-  const groups = [
-    {key:'critical', label:'Critical Priority', color:'var(--red)'},
-    {key:'high',     label:'High Priority',     color:'var(--amber)'},
-    {key:'medium',   label:'Medium Priority',   color:'var(--cyan)'},
-  ];
+function platChips(pf){
+  return pf.map(p => PLATFORMS.find(x => x.id === p)).map(p => `<span class="plat">${p.short}</span>`).join('');
+}
+function mitreChips(ids){
+  if(!ids.length) return '';
+  return '<div class="mitre">' + ids.map(t => {
+    const url = 'https://attack.mitre.org/techniques/' + t.replace('.', '/') + '/';
+    return `<a href="${url}" target="_blank" rel="noopener" title="${esc(MITRE_NAMES[t] || t)}">ATT&amp;CK ${t}</a>`;
+  }).join('') + '</div>';
+}
 
-  groups.forEach((g, gi) => {
-    const items = artifacts.filter(a => a.priority === g.key);
-    if(!items.length) return;
+function renderList(){
+  const all = scenarioItems();
+  renderStats(all);
+  updateProgress(all);
+  const items = visibleItems();
+  const list = $('artifactList');
 
-    const sec = document.createElement('div');
-    sec.className = `artifact-section fade-up fade-up-d${gi+1}`;
-    sec.innerHTML = `
+  if(!items.length){
+    list.innerHTML = `<div class="no-results">${all.length ? 'No artifacts match this filter.' : 'No artifacts for the selected platforms. Add another platform above.'}</div>`;
+    return;
+  }
+
+  list.innerHTML = GROUPS.map((g, gi) => {
+    const group = items.filter(a => a.priority === g.key);
+    if(!group.length) return '';
+    return `
+    <div class="artifact-section fade-up" style="animation-delay:${gi*0.05}s">
       <div class="priority-header">
         <div class="priority-pip" style="background:${g.color};box-shadow:0 0 6px ${g.color};"></div>
         <div class="priority-label" style="color:${g.color};">${g.label}</div>
-        <div class="priority-count">${items.length} artifact${items.length>1?'s':''}</div>
+        <div class="priority-count">${group.length} artifact${group.length > 1 ? 's' : ''}</div>
       </div>
-    `;
+      ${group.map(cardHtml).join('')}
+    </div>`;
+  }).join('');
+}
 
-    items.forEach(art => {
-      const card = document.createElement('div');
-      card.className = `artifact-card p-${art.priority}`;
-      card.id = 'card-' + art.id;
-      const isChecked = checked.has(art.id);
-      card.innerHTML = `
-        <div class="ac-head" onclick="toggleCard('${art.id}')">
-          <div class="ac-check ${isChecked?'checked':''}" onclick="event.stopPropagation();toggleCheck('${art.id}')"></div>
-          <div class="ac-icon">${art.icon}</div>
-          <div class="ac-name">${art.name}</div>
-          <div class="ac-priority">${art.priority}</div>
-          <div class="ac-chevron">▶</div>
+function cardHtml(art){
+  const isChecked = checked.has(art.id);
+  const isOpen = expanded.has(art.id);
+  return `
+  <div class="artifact-card p-${art.priority}${isOpen ? ' expanded' : ''}${isChecked ? ' done' : ''}" id="card-${art.id}">
+    <div class="ac-head">
+      <input type="checkbox" class="ac-check" data-id="${art.id}" ${isChecked ? 'checked' : ''} aria-label="Mark ${esc(art.n)} as collected">
+      <button class="ac-toggle" type="button" data-id="${art.id}" aria-expanded="${isOpen}" aria-controls="body-${art.id}">
+        <span class="ac-icon" aria-hidden="true">${art.i}</span>
+        <span class="ac-title"><span class="ac-name">${art.n}</span><span class="ac-plats">${platChips(art.pf)}</span></span>
+        <span class="ac-priority">${art.priority}</span>
+        <span class="ac-chevron" aria-hidden="true">▶</span>
+      </button>
+    </div>
+    <div class="ac-body" id="body-${art.id}">
+      <div class="ac-why">${art.why}</div>
+      <div class="ac-meta">
+        <div class="meta-block">
+          <div class="meta-label">Location / source</div>
+          <div class="meta-val">${art.loc.map(l => `<code>${esc(l)}</code>`).join('')}</div>
         </div>
-        <div class="ac-body">
-          <div class="ac-why">${art.why}</div>
-          <div class="ac-meta">
-            <div class="meta-block">
-              <div class="meta-label">Registry / File Location</div>
-              <div class="meta-val"><code>${art.location}</code></div>
-            </div>
-            <div class="meta-block">
-              <div class="meta-label">Key Evidence Captured</div>
-              <div class="meta-val">${art.what}</div>
-            </div>
-          </div>
-          <div class="ac-axiom">
-            <div class="axiom-dot"></div>
-            <span><strong>AXIOM Coverage:</strong> ${art.axiom}</span>
-          </div>
+        <div class="meta-block">
+          <div class="meta-label">Evidence captured</div>
+          <div class="meta-val">${art.cap}</div>
         </div>
-      `;
-      sec.appendChild(card);
-    });
-
-    list.appendChild(sec);
-  });
-
-  updateProgress(artifacts.length);
+      </div>
+      <div class="ac-foot">
+        <div class="ac-tools"><span class="dotc"></span><span><strong>Parse with:</strong> ${esc(art.tools)}</span></div>
+        ${mitreChips(art.mitre)}
+        ${art.tip ? `<div class="ac-tip"><strong>⚠ Analyst note:</strong> ${art.tip}</div>` : ''}
+      </div>
+    </div>
+  </div>`;
 }
 
-function toggleCard(id){
-  const card = document.getElementById('card-' + id);
-  card.classList.toggle('expanded');
+function toggleCheck(id, on){
+  on ? checked.add(id) : checked.delete(id);
+  saveProgress();
+  const card = $('card-' + id);
+  if(card) card.classList.toggle('done', on);
+  if(hideDone && on){ renderList(); return; }
+  const all = scenarioItems();
+  renderStats(all);
+  updateProgress(all);
 }
 
-function toggleCheck(id){
-  if(checked.has(id)) checked.delete(id);
-  else checked.add(id);
-
-  const checkEl = document.querySelector(`#card-${id} .ac-check`);
-  if(checkEl) checkEl.classList.toggle('checked', checked.has(id));
-
-  const scenario = SCENARIOS.find(s => s.id === selectedScenario);
-  const total = scenario ? scenario.artifacts.filter(a => selectedOS === 'all' || a.os.includes(selectedOS) || a.os.includes('all')).length : 0;
-  updateProgress(total);
-}
-
-function updateProgress(total){
-  const n = checked.size;
-  const pct = total > 0 ? (n / total * 100) : 0;
-  document.getElementById('progressFill').style.width = pct + '%';
-  document.getElementById('progressLabel').textContent = `${n} / ${total} collected`;
+function updateProgress(all){
+  const total = all.length;
+  const n = all.filter(a => checked.has(a.id)).length;
+  $('progressFill').style.width = (total ? n / total * 100 : 0) + '%';
+  $('progressLabel').textContent = `${n} / ${total} collected`;
 }
 
 function resetChecks(){
+  if(checked.size && !confirm('Clear collection progress for this case type?')) return;
   checked = new Set();
-  document.querySelectorAll('.ac-check').forEach(c => c.classList.remove('checked'));
-  const scenario = SCENARIOS.find(s => s.id === selectedScenario);
-  const total = scenario ? scenario.artifacts.length : 0;
-  updateProgress(total);
+  saveProgress();
+  renderList();
 }
 
-function exportChecklist(){
-  const scenario = SCENARIOS.find(s => s.id === selectedScenario);
-  if(!scenario) return;
+/* ═══════════════════════════════════════════════════
+   EXPORT
+═══════════════════════════════════════════════════ */
+function exportMeta(){
+  const s = SCENARIOS.find(x => x.id === selectedScenario);
+  return {
+    s,
+    items: scenarioItems(),
+    plats: PLATFORMS.filter(p => selectedPlatforms.has(p.id)).map(p => p.short).join(', '),
+    caseId: $('caseId').value.trim(),
+    examiner: $('examiner').value.trim(),
+    date: new Date().toISOString().replace('T',' ').slice(0,16) + ' UTC',
+  };
+}
 
-  const artifacts = scenario.artifacts.filter(a =>
-    selectedOS === 'all' || a.os.includes(selectedOS) || a.os.includes('all')
-  );
-
-  let text = `MAGNET FORENSICS — INVESTIGATION ARTIFACT CHECKLIST\n`;
-  text += `═══════════════════════════════════════════════════\n`;
-  text += `Case Type: ${scenario.name}\n`;
-  text += `Platform: ${OS_OPTIONS.find(o=>o.id===selectedOS)?.label}\n`;
-  text += `Generated: ${new Date().toLocaleString()}\n\n`;
-
-  ['critical','high','medium'].forEach(p => {
-    const items = artifacts.filter(a => a.priority === p);
-    if(!items.length) return;
-    text += `[${p.toUpperCase()} PRIORITY]\n`;
-    items.forEach(a => {
-      const status = checked.has(a.id) ? '[✓]' : '[ ]';
-      text += `\n${status} ${a.name}\n`;
-      text += `    WHY: ${a.why.substring(0,120)}...\n`;
-      text += `    LOCATION: ${a.location}\n`;
-      text += `    CAPTURES: ${a.what}\n`;
-      text += `    AXIOM: ${a.axiom.substring(0,100)}...\n`;
-    });
-    text += '\n';
-  });
-
-  text += `\n═══════════════════════════════════════════════════\n`;
-  text += `Tool: Magnet AXIOM · magnetforensics.com\n`;
-
-  const blob = new Blob([text], {type:'text/plain'});
+function download(name, text, type){
+  const blob = new Blob([text], {type});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `checklist-${scenario.id}-${Date.now()}.txt`;
-  a.click();
+  a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+function exportMarkdown(){
+  const m = exportMeta(); if(!m.s) return;
+  let md = `# Investigation Artifact Checklist: ${m.s.name}\n\n`;
+  md += `| Field | Value |\n|---|---|\n`;
+  if(m.caseId) md += `| Case ID | ${m.caseId} |\n`;
+  if(m.examiner) md += `| Examiner | ${m.examiner} |\n`;
+  md += `| Platforms | ${m.plats} |\n| Generated | ${m.date} |\n| Progress | ${m.items.filter(i => checked.has(i.id)).length} / ${m.items.length} collected |\n\n`;
+  md += `> ${m.s.scene.text}\n>\n> **First move:** ${m.s.scene.first}\n\n`;
+  GROUPS.forEach(g => {
+    const items = m.items.filter(a => a.priority === g.key);
+    if(!items.length) return;
+    md += `## ${g.label}\n\n`;
+    items.forEach(a => {
+      md += `### ${checked.has(a.id) ? '[x]' : '[ ]'} ${a.n}\n\n`;
+      md += `**Why:** ${a.why}\n\n**Captures:** ${a.cap}\n\n**Locations:**\n${a.loc.map(l => '- `' + l + '`').join('\n')}\n\n`;
+      md += `**Parse with:** ${a.tools}\n\n`;
+      if(a.mitre.length) md += `**MITRE ATT&CK:** ${a.mitre.map(t => `${t} (${MITRE_NAMES[t] || ''})`).join(', ')}\n\n`;
+      if(a.tip) md += `**Analyst note:** ${a.tip}\n\n`;
+    });
+  });
+  md += `---\nGenerated with Investigation Scenario Builder by zov911 (https://zov911.com). Reference only: validate against your tooling and legal requirements.\n`;
+  download(`checklist-${m.s.id}${m.caseId ? '-' + m.caseId.replace(/[^\w-]+/g,'_') : ''}.md`, md, 'text/markdown');
+}
+
+function exportCsv(){
+  const m = exportMeta(); if(!m.s) return;
+  const q = v => '"' + String(v).replace(/"/g, '""') + '"';
+  const rows = [['Collected','Priority','Artifact','Platforms','Why','Locations','Captures','Tools','MITRE ATT&CK','Analyst note']];
+  m.items.forEach(a => rows.push([
+    checked.has(a.id) ? 'yes' : 'no', a.priority, a.n, a.pf.join(' '), a.why, a.loc.join(' | '), a.cap, a.tools, a.mitre.join(' '), a.tip || '',
+  ]));
+  download(`checklist-${m.s.id}.csv`, '\ufeff' + rows.map(r => r.map(q).join(',')).join('\r\n'), 'text/csv');
 }
 </script>
 </body>
