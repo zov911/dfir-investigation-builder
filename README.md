@@ -1,6 +1,6 @@
 # Investigation Scenario Builder: DFIR Artifact Triage Planner
 
-**Live demo:** https://zov911.github.io/magnet-forensics-investigation-builder/
+**Live demo:** https://zov911.github.io/dfir-investigation-builder/
 
 A vendor-neutral digital forensics and incident response (DFIR) planner. Pick a case type and the platforms in scope, and get a prioritized evidence-collection checklist. Each artifact lists where it lives, what it proves, how to parse it with free or open-source tools, and its MITRE ATT&CK techniques.
 
