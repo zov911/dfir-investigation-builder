@@ -8,7 +8,7 @@ A vendor-neutral digital forensics and incident response (DFIR) planner. Pick a 
 
 - **8 case types:** IP theft, financial fraud, ransomware & malware, business email compromise, insider threat, data breach, harassment / HR and missing person
 - **42 artifacts across 5 platforms:** Windows 10/11 & Server, macOS, Linux/ESXi, iOS/Android, and cloud (Microsoft 365, Google Workspace)
-- **Current artifacts (2026):** SRUM, Amcache, BAM, new Teams (LevelDB), cloud sync clients, RMM tool logs, rclone/MEGA exfil, Windows Recall, macOS Biome, on-device Google Timeline, generative-AI usage
+- **Current artifacts:** SRUM, Amcache, BAM, new Teams (LevelDB), cloud sync clients, RMM tool logs, rclone/MEGA exfil, Windows Recall, macOS Biome, on-device Google Timeline, generative-AI usage
 - **Scenario-specific reasoning:** the same artifact gets a different priority and explanation depending on the case
 - **MITRE ATT&CK mapping:** each technique links to attack.mitre.org
 - **Analyst notes:** common pitfalls, e.g. ShimCache ≠ execution on Windows 10+, or Windows 11 reporting "Windows 10" in the registry
@@ -30,4 +30,4 @@ I design and build interactive tools for B2B teams: calculators, configurators, 
 
 **Reach out → [zov911.com](https://zov911.com)**
 
-© 2026 zov911. All rights reserved.
+© zov911. All rights reserved.
